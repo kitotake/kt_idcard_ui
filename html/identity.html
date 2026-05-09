@@ -1,0 +1,362 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carte d'identité</title>
+<link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    width: 100vw;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: transparent;
+    font-family: 'IBM Plex Sans', sans-serif;
+    pointer-events: none;
+    overflow: hidden;
+  }
+
+  #overlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(3px);
+    pointer-events: all;
+    align-items: center;
+    justify-content: center;
+  }
+  #overlay.visible { display: flex; }
+
+  /* ── CARD ── */
+  .card {
+    position: relative;
+    width: 420px;
+    background: #0d0f14;
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.7), 0 0 0 1px rgba(255,255,255,0.04);
+    animation: cardIn 0.35s cubic-bezier(0.22,1,0.36,1) forwards;
+  }
+
+  @keyframes cardIn {
+    from { opacity: 0; transform: translateY(18px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0)    scale(1); }
+  }
+
+  /* bande couleur état */
+  .card::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, #1a6cff, #00d4aa);
+  }
+
+  /* ── HEADER ── */
+  .card-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 20px 24px 14px;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+  }
+
+  .card-country {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .flag {
+    width: 28px;
+    height: 20px;
+    border-radius: 3px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-shrink: 0;
+  }
+  .flag-b { flex: 1; background: #002395; }
+  .flag-w { flex: 1; background: #fff; }
+  .flag-r { flex: 1; background: #ED2939; }
+
+  .card-country-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    color: rgba(255,255,255,0.45);
+  }
+
+  .card-type {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.25);
+    letter-spacing: 1px;
+  }
+
+  /* ── BODY ── */
+  .card-body {
+    display: flex;
+    gap: 20px;
+    padding: 20px 24px;
+  }
+
+  .card-photo {
+    width: 80px;
+    height: 96px;
+    border-radius: 6px;
+    background: #1a1d24;
+    border: 1px solid rgba(255,255,255,0.08);
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+  }
+
+  .card-photo svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.2;
+  }
+
+  .card-photo.male   .icon-m { display: block; }
+  .card-photo.male   .icon-f { display: none;  }
+  .card-photo.female .icon-m { display: none;  }
+  .card-photo.female .icon-f { display: block; }
+  .icon-m, .icon-f { display: none; }
+
+  .card-info {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-name {
+    font-family: 'Bebas Neue', sans-serif;
+    font-size: 26px;
+    letter-spacing: 1px;
+    color: #fff;
+    line-height: 1;
+  }
+  .card-name span {
+    color: #1a6cff;
+  }
+
+  .fields {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+
+  .field {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+  .field.full { grid-column: 1 / -1; }
+
+  .field-label {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: rgba(255,255,255,0.28);
+    text-transform: uppercase;
+  }
+
+  .field-value {
+    font-size: 13px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.85);
+  }
+
+  /* ── FOOTER ── */
+  .card-footer {
+    padding: 12px 24px 16px;
+    border-top: 1px solid rgba(255,255,255,0.06);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+
+  .mrz {
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: rgba(255,255,255,0.12);
+    line-height: 1.6;
+    white-space: pre;
+  }
+
+  .card-id-chip {
+    width: 32px;
+    height: 24px;
+    border-radius: 4px;
+    background: linear-gradient(135deg, #c8a84b, #e8c87a, #a07830);
+    opacity: 0.7;
+  }
+
+  /* ── LABEL "montré par" ── */
+  .shown-by {
+    text-align: center;
+    padding: 0 24px 14px;
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.2);
+    letter-spacing: 0.5px;
+  }
+  .shown-by span {
+    color: rgba(255,255,255,0.5);
+  }
+
+  /* ── CLOSE HINT ── */
+  .close-hint {
+    position: absolute;
+    bottom: -32px;
+    left: 50%;
+    transform: translateX(-50%);
+    font-family: 'IBM Plex Mono', monospace;
+    font-size: 10px;
+    color: rgba(255,255,255,0.3);
+    white-space: nowrap;
+    letter-spacing: 0.5px;
+  }
+</style>
+</head>
+<body>
+
+<div id="overlay">
+  <div style="position:relative">
+    <div class="card" id="card">
+
+      <div class="card-header">
+        <div class="card-country">
+          <div class="flag">
+            <div class="flag-b"></div>
+            <div class="flag-w"></div>
+            <div class="flag-r"></div>
+          </div>
+          <span class="card-country-name">République Française</span>
+        </div>
+        <span class="card-type">CARTE NATIONALE D'IDENTITÉ</span>
+      </div>
+
+      <div class="card-body">
+        <div class="card-photo" id="photo">
+          <!-- male silhouette -->
+          <svg class="icon-m" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+            <circle cx="12" cy="7" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+          </svg>
+          <!-- female silhouette -->
+          <svg class="icon-f" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="1.5">
+            <circle cx="12" cy="7" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/>
+            <path d="M12 17v4M10 19h4" stroke-linecap="round"/>
+          </svg>
+        </div>
+
+        <div class="card-info">
+          <div class="card-name">
+            <span id="field-lastname">NOM</span> <span style="color:rgba(255,255,255,0.6);font-size:20px" id="field-firstname">Prénom</span>
+          </div>
+          <div class="fields">
+            <div class="field">
+              <span class="field-label">Date de naissance</span>
+              <span class="field-value" id="field-dob">—</span>
+            </div>
+            <div class="field">
+              <span class="field-label">Sexe</span>
+              <span class="field-value" id="field-gender">—</span>
+            </div>
+            <div class="field full">
+              <span class="field-label">Profession</span>
+              <span class="field-value" id="field-job">—</span>
+            </div>
+            <div class="field full">
+              <span class="field-label">Identifiant unique</span>
+              <span class="field-value" id="field-uid" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:rgba(255,255,255,0.5)">—</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card-footer">
+        <div class="mrz" id="field-mrz">IDFRAX&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;\n&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;&lt;</div>
+        <div class="card-id-chip"></div>
+      </div>
+
+      <div class="shown-by" id="shown-by" style="display:none">
+        Présentée par <span id="field-shownby">—</span>
+      </div>
+
+    </div>
+    <div class="close-hint">Appuyez sur [E] pour fermer</div>
+  </div>
+</div>
+
+<script>
+  const overlay = document.getElementById('overlay');
+
+  function padMRZ(str, len, char = '<') {
+    return (str || '').toUpperCase().replace(/[^A-Z0-9]/g, '<').padEnd(len, char);
+  }
+
+  function buildMRZ(data) {
+    const ln = padMRZ(data.lastname, 13);
+    const fn = padMRZ(data.firstname, 12);
+    const uid = padMRZ(data.unique_id, 9).slice(0, 9);
+    return `IDFRAX${uid}<<<<<<\n${ln}<<${fn}`;
+  }
+
+  function show(data) {
+    document.getElementById('field-lastname').textContent  = (data.lastname  || '').toUpperCase();
+    document.getElementById('field-firstname').textContent = data.firstname  || '';
+    document.getElementById('field-dob').textContent       = data.dateofbirth || '—';
+    document.getElementById('field-uid').textContent       = data.unique_id  || '—';
+    document.getElementById('field-mrz').textContent       = buildMRZ(data);
+
+    // Genre
+    const isFemale = (data.ped_model === 'mp_f_freemode_01');
+    document.getElementById('field-gender').textContent = isFemale ? 'F' : 'M';
+    const photo = document.getElementById('photo');
+    photo.className = 'card-photo ' + (isFemale ? 'female' : 'male');
+
+    // Job
+    document.getElementById('field-job').textContent = data.job_label || data.job || 'Sans emploi';
+
+    // "Montré par" (si autre joueur)
+    const shownByEl = document.getElementById('shown-by');
+    if (data.shown_by) {
+      document.getElementById('field-shownby').textContent = data.shown_by;
+      shownByEl.style.display = 'block';
+    } else {
+      shownByEl.style.display = 'none';
+    }
+
+    overlay.classList.add('visible');
+  }
+
+  function hide() {
+    overlay.classList.remove('visible');
+  }
+
+  window.addEventListener('message', function(e) {
+    if (e.data.action === 'showIdentity') show(e.data);
+    if (e.data.action === 'hideIdentity') hide();
+  });
+
+  document.addEventListener('keydown', function(e) {
+    if ((e.key === 'e' || e.key === 'E') && overlay.classList.contains('visible')) {
+      hide();
+      fetch('https://union/identity:close', { method: 'POST', body: JSON.stringify({}) });
+    }
+  });
+</script>
+</body>
+</html>
