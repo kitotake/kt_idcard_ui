@@ -3,9 +3,15 @@ game 'gta5'
 
 name        'kt_idcard_ui'
 author      'Kitotake'
-description "Module carte d'identité — bridge Union / kt_inventory / kt_interact"
-version     '1.0.0'
+description "arte d'identité + Permis de conduire — bridge Union / kt_inventory / kt_interact / kt_target"
+version     '2.0.0'
 
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- DÉPENDANCES OBLIGATOIRES
+-- union doit être démarré avant ce module.
+-- kt_inventory, kt_interact, kt_target sont optionnels
+-- (le code gère leur absence avec pcall/GetResourceState).
+-- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 dependencies {
     'oxmysql',
     'kt_lib',
@@ -33,6 +39,7 @@ server_scripts {
 }
 
 server_exports {
-    'ShowIdentity',      
-    'UseIdentityCard',
+    'ShowIdentity',       -- exports["kt_idcard_ui"]:ShowIdentity(src)
+    'UseIdentityCard',    -- callback item kt_inventory (export-based)
+    'UseLicenseCard',     -- callback item permis kt_inventory (export-based)
 }
