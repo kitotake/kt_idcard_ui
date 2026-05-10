@@ -1,0 +1,502 @@
+// ─── Variables ───────────────────────────────────────────────────────────────
+
+$bg-card:        #0d0f14;
+$bg-field:       #1a1d24;
+$border-subtle:  rgba(255, 255, 255, 0.08);
+$border-faint:   rgba(255, 255, 255, 0.06);
+
+$accent-blue:    #1a6cff;
+$accent-teal:    #00d4aa;
+$accent-red:     rgba(255, 80, 80, 0.6);
+$accent-gold:    #c8a84b;
+
+$text-primary:   rgba(255, 255, 255, 0.85);
+$text-secondary: rgba(255, 255, 255, 0.45);
+$text-faint:     rgba(255, 255, 255, 0.25);
+$text-ghost:     rgba(255, 255, 255, 0.12);
+
+$font-display:  'Bebas Neue', sans-serif;
+$font-mono:     'IBM Plex Mono', monospace;
+$font-sans:     'IBM Plex Sans', sans-serif;
+
+$radius-card:   12px;
+$radius-sm:     6px;
+$radius-xs:     4px;
+
+// ─── Animations ──────────────────────────────────────────────────────────────
+
+@keyframes cardIn {
+  from {
+    opacity: 0;
+    transform: translateY(18px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes overlayIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+@keyframes pulse-border {
+  0%, 100% { border-color: rgba(26, 108, 255, 0.3); }
+  50%       { border-color: rgba(26, 108, 255, 0.6); }
+}
+
+// ─── Reset ───────────────────────────────────────────────────────────────────
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  width: 100vw;
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  font-family: $font-sans;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+// ─── Overlay ─────────────────────────────────────────────────────────────────
+
+.overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.55);
+  backdrop-filter: blur(3px);
+  pointer-events: all;
+  align-items: center;
+  justify-content: center;
+  animation: overlayIn 0.2s ease forwards;
+
+  &.visible {
+    display: flex;
+  }
+}
+
+// ─── Card Wrapper ─────────────────────────────────────────────────────────────
+
+.card-wrapper {
+  position: relative;
+}
+
+.close-hint {
+  position: absolute;
+  bottom: -30px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.3);
+  white-space: nowrap;
+  letter-spacing: 0.5px;
+}
+
+// ─── Card ────────────────────────────────────────────────────────────────────
+
+.card {
+  position: relative;
+  width: 440px;
+  background: $bg-card;
+  border: 1px solid $border-subtle;
+  border-radius: $radius-card;
+  overflow: hidden;
+  box-shadow:
+    0 32px 80px rgba(0, 0, 0, 0.7),
+    0 0 0 1px rgba(255, 255, 255, 0.04);
+  animation: cardIn 0.35s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 3px;
+    background: linear-gradient(90deg, $accent-blue, $accent-teal);
+  }
+}
+
+// ─── Header ──────────────────────────────────────────────────────────────────
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 24px 14px;
+  border-bottom: 1px solid $border-faint;
+
+  &__country {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__name {
+    font-family: $font-mono;
+    font-size: 13px;
+    letter-spacing: 2.5px;
+    color: $text-secondary;
+    text-transform: uppercase;
+  }
+
+  &__type {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $text-faint;
+    letter-spacing: 1px;
+    text-align: right;
+  }
+}
+
+// ─── Flag ────────────────────────────────────────────────────────────────────
+
+.flag {
+  width: 28px;
+  height: 20px;
+  border-radius: 3px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  flex-shrink: 0;
+
+  &__blue  { flex: 1; background: #002395; }
+  &__white { flex: 1; background: #ffffff; }
+  &__red   { flex: 1; background: #ED2939; }
+}
+
+// ─── Identity View ───────────────────────────────────────────────────────────
+
+.card-body {
+  display: flex;
+  gap: 20px;
+  padding: 20px 24px;
+}
+
+.card-photo {
+  width: 80px;
+  height: 96px;
+  border-radius: $radius-sm;
+  background: $bg-field;
+  border: 1px solid $border-subtle;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+
+  svg {
+    width: 44px;
+    height: 44px;
+    opacity: 0.2;
+    color: white;
+  }
+}
+
+.card-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.card-name {
+  font-family: $font-display;
+  font-size: 26px;
+  letter-spacing: 1px;
+  color: #fff;
+  line-height: 1;
+
+  &__first {
+    color: $accent-blue;
+    font-size: 20px;
+  }
+
+  &--small {
+    font-size: 18px;
+  }
+}
+
+.fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+
+  &--full {
+    grid-column: 1 / -1;
+  }
+
+  &__label {
+    font-family: $font-mono;
+    font-size: 9px;
+    letter-spacing: 1.5px;
+    color: $text-faint;
+    text-transform: uppercase;
+  }
+
+  &__value {
+    font-size: 13px;
+    font-weight: 500;
+    color: $text-primary;
+
+    &--mono {
+      font-family: $font-mono;
+      font-size: 11px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+  }
+}
+
+// ─── Footer ──────────────────────────────────────────────────────────────────
+
+.card-footer {
+  padding: 12px 24px 16px;
+  border-top: 1px solid $border-faint;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.mrz {
+  font-family: $font-mono;
+  font-size: 8px;
+  letter-spacing: 1px;
+  color: $text-ghost;
+  line-height: 1.6;
+  white-space: pre;
+}
+
+.chip {
+  width: 32px;
+  height: 24px;
+  border-radius: $radius-xs;
+  background: linear-gradient(135deg, $accent-gold, #e8c87a, #a07830);
+  opacity: 0.7;
+}
+
+// ─── Licenses View ───────────────────────────────────────────────────────────
+
+.license-header {
+  padding: 16px 24px 8px;
+
+  &__sub {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $text-faint;
+    margin-top: 4px;
+  }
+}
+
+.license-list {
+  padding: 0 16px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.license-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid $border-faint;
+  transition: border-color 0.2s;
+
+  &--valid {
+    border-color: rgba(0, 212, 170, 0.3);
+  }
+
+  &--invalid {
+    border-color: rgba(255, 60, 60, 0.2);
+    opacity: 0.55;
+  }
+
+  &__icon {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: $radius-sm;
+    font-size: 14px;
+    flex-shrink: 0;
+
+    .license-item--valid & {
+      background: rgba(0, 212, 170, 0.12);
+      color: $accent-teal;
+    }
+
+    .license-item--invalid & {
+      background: rgba(255, 60, 60, 0.08);
+      color: rgba(255, 80, 80, 0.6);
+    }
+  }
+
+  &__info {
+    flex: 1;
+  }
+
+  &__name {
+    font-size: 13px;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  &__status {
+    font-family: $font-mono;
+    font-size: 10px;
+    margin-top: 2px;
+
+    .license-item--valid & { color: $accent-teal; }
+    .license-item--invalid & { color: rgba(255, 80, 80, 0.6); }
+  }
+
+  &__badge {
+    font-family: $font-mono;
+    font-size: 9px;
+    padding: 3px 8px;
+    border-radius: $radius-xs;
+    letter-spacing: 1px;
+
+    .license-item--valid & {
+      background: rgba(0, 212, 170, 0.12);
+      color: $accent-teal;
+    }
+
+    .license-item--invalid & {
+      background: rgba(255, 60, 60, 0.08);
+      color: rgba(255, 80, 80, 0.6);
+    }
+  }
+}
+
+// ─── Driving Menu ────────────────────────────────────────────────────────────
+
+.driving-header {
+  padding: 16px 24px 8px;
+
+  &__title {
+    font-family: $font-display;
+    font-size: 18px;
+    color: #fff;
+    letter-spacing: 1px;
+  }
+
+  &__sub {
+    font-family: $font-mono;
+    font-size: 10px;
+    color: $text-faint;
+    margin-top: 4px;
+  }
+}
+
+.driving-list {
+  padding: 0 16px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.driving-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  border-radius: 8px;
+  cursor: pointer;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid $border-faint;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  &:hover {
+    background: rgba(26, 108, 255, 0.1);
+    border-color: rgba(26, 108, 255, 0.3);
+  }
+
+  &--owned {
+    opacity: 0.4;
+    cursor: default;
+    pointer-events: none;
+  }
+
+  &__icon {
+    width: 28px;
+    text-align: center;
+    color: $accent-blue;
+    font-size: 14px;
+    flex-shrink: 0;
+  }
+
+  &__label {
+    font-size: 13px;
+    font-weight: 500;
+    color: $text-primary;
+  }
+
+  &__owned-tag {
+    font-family: $font-mono;
+    font-size: 9px;
+    color: $accent-teal;
+    margin-top: 2px;
+  }
+}
+
+.driving-hint {
+  padding: 8px 24px 16px;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+}
+
+// ─── Shown By ────────────────────────────────────────────────────────────────
+
+.shown-by {
+  text-align: center;
+  padding: 0 24px 14px;
+  font-family: $font-mono;
+  font-size: 10px;
+  color: rgba(255, 255, 255, 0.2);
+  letter-spacing: 0.5px;
+
+  &__label {
+    margin-right: 6px;
+  }
+
+  &__badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(26, 108, 255, 0.1);
+    border: 1px solid rgba(26, 108, 255, 0.2);
+    border-radius: $radius-xs;
+    padding: 2px 8px;
+    color: rgba(255, 255, 255, 0.5);
+
+    svg {
+      color: $accent-blue;
+      font-size: 9px;
+    }
+  }
+}
