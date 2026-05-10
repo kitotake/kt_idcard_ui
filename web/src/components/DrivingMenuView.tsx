@@ -1,9 +1,8 @@
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import {
-  faCar, faMotorcycle, faTruck, faTaxi, faGraduationCap, faIdCard,
-} from '@fortawesome/free-solid-svg-icons'
+import { faCar, faMotorcycle, faTruck, faTaxi, faGraduationCap, faIdCard } from '@fortawesome/free-solid-svg-icons'
 import type { DrivingMenuPayload } from '../types'
-import { CardHeader } from './CardHeader'
+import { FrenchFlag } from './FrenchFlag'
+import { GuillochesBg } from './GuillochesBg'
 import { useNuiFetch } from '../hooks/useNui'
 
 const FA_MAP: Record<string, typeof faCar> = {
@@ -14,8 +13,8 @@ const FA_MAP: Record<string, typeof faCar> = {
   'fas fa-id-card':    faIdCard,
 }
 
-function resolveIcon(iconClass: string) {
-  return FA_MAP[iconClass] ?? faGraduationCap
+function resolveIcon(cls: string) {
+  return FA_MAP[cls] ?? faGraduationCap
 }
 
 interface Props {
@@ -32,33 +31,36 @@ export function DrivingMenuView({ data, onClose }: Props) {
   }
 
   return (
-    <>
-      <CardHeader typeLabel="AUTO-ÉCOLE" />
+    <div className="drv-card">
+      <GuillochesBg />
 
-      <div className="driving-header">
-        <div className="driving-header__title">Choisissez votre permis</div>
-        <div className="driving-header__sub">Auto-école officielle</div>
+      <div className="drv-header">
+        <div className="card-top__left">
+          <FrenchFlag size="sm" />
+          <span className="card-top__country" style={{ fontSize: 9 }}>République Française</span>
+        </div>
+        <span className="drv-title">AUTO-ÉCOLE</span>
       </div>
 
-      <div className="driving-list">
-        {(data.licenses ?? []).map((lic) => (
+      <div className="drv-list">
+        {(data.licenses ?? []).map(lic => (
           <div
             key={lic.type}
-            className={`driving-item ${lic.owned ? 'driving-item--owned' : ''}`}
+            className={`drv-item ${lic.owned ? 'drv-item--owned' : ''}`}
             onClick={() => !lic.owned && handleSelect(lic.type)}
           >
-            <div className="driving-item__icon">
+            <div className="drv-item__icon">
               <FontAwesomeIcon icon={resolveIcon(lic.icon)} />
             </div>
             <div>
-              <div className="driving-item__label">{lic.label}</div>
-              {lic.owned && <div className="driving-item__owned-tag">✓ Déjà obtenu</div>}
+              <div className="drv-item__label">{lic.label}</div>
+              {lic.owned && <div className="drv-item__tag">✓ Déjà obtenu</div>}
             </div>
           </div>
         ))}
       </div>
 
-      <div className="driving-hint">Cliquez sur un permis pour passer l'examen</div>
-    </>
+      <div className="drv-hint">Cliquez sur un permis pour passer l'examen</div>
+    </div>
   )
 }

@@ -2,35 +2,28 @@ import { useEffect, useCallback } from 'react'
 import type { NuiPayload } from '../types'
 
 function getResourceName(): string {
-  return (window as Window & { location: Location }).location.hostname || 'kt_idcard_ui'
+  return window.location.hostname || 'kt_idcard_ui'
 }
 
-export function useNuiMessage(handler: (payload: NuiPayload) => void) {
+export function useNuiMessage(handler: (p: NuiPayload) => void) {
   useEffect(() => {
-    const listener = (event: MessageEvent) => {
-      const data = event.data as NuiPayload
-      if (data && data.action) {
-        handler(data)
-      }
+    const fn = (e: MessageEvent) => {
+      const d = e.data as NuiPayload
+      if (d?.action) handler(d)
     }
-    window.addEventListener('message', listener)
-    return () => window.removeEventListener('message', listener)
+    window.addEventListener('message', fn)
+    return () => window.removeEventListener('message', fn)
   }, [handler])
 }
 
 export function useNuiFetch() {
-  const fetchNui = useCallback(async (endpoint: string, data: unknown = {}): Promise<void> => {
-    const resourceName = getResourceName()
+  return useCallback(async (endpoint: string, data: unknown = {}) => {
     try {
-      await fetch(`https://${resourceName}/${endpoint}`, {
+      await fetch(`https://${getResourceName()}/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(data),
       })
-    } catch {
-      // In dev mode outside FiveM, fetch will fail — that's expected
-    }
+    } catch { /* dev mode */ }
   }, [])
-
-  return fetchNui
 }
