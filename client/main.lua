@@ -1,8 +1,8 @@
 -- client/main.lua
--- kt_idcard_ui v3 — client
--- Gère l'affichage NUI de 9 types de cartes
+-- kt_idcard_ui v3 + kt_bankcard_ui — CLIENT FUSIONNÉ
+-- NUI unique gérant 9 cartes identité + 3 cartes bancaires
 
-local log     = Logger:child("IDCARD:CLIENT")
+local log     = Logger:child("UNIFIED:CLIENT")
 local nuiOpen = false
 local npcId        = nil
 local npcDrivingId = nil
@@ -65,6 +65,20 @@ local function removePed(ped)
     DeleteEntity(ped)
 end
 
+-- ─── NUI open/close helpers ──────────────────────────────────────────────────
+
+local function openNUI(payload)
+    nuiOpen = true
+    SetNuiFocus(true, false)
+    SendNUIMessage(payload)
+end
+
+local function closeNUI()
+    nuiOpen = false
+    SetNuiFocus(false, false)
+    SendNUIMessage({ action = "hideCard" })
+end
+
 -- ─── Spawn au login ──────────────────────────────────────────────────────────
 
 RegisterNetEvent("union:player:spawned", function()
@@ -81,11 +95,7 @@ AddEventHandler("union:character:unloaded", function()
     removePed(npcId)
     removePed(npcDrivingId)
     npcId = nil ; npcDrivingId = nil
-    if nuiOpen then
-        nuiOpen = false
-        SetNuiFocus(false, false)
-        SendNUIMessage({ action = "hideCard" })
-    end
+    if nuiOpen then closeNUI() end
 end)
 
 -- ─── NPC interactions ────────────────────────────────────────────────────────
@@ -187,23 +197,36 @@ CreateThread(function()
     end
 end)
 
--- ─── NUI display ─────────────────────────────────────────────────────────────
+-- ─── NUI display — cartes identité (depuis serveur idcard) ───────────────────
 
 RegisterNetEvent("idcard:show", function(payload)
     if not payload then return end
-    nuiOpen = true
-    SetNuiFocus(true, false)
-    SendNUIMessage(payload)
+    openNUI(payload)
     log:info("Carte affichée: " .. tostring(payload.cardType))
 end)
 
--- ─── NUI close ───────────────────────────────────────────────────────────────
+-- ─── NUI display — cartes bancaires (depuis serveur bankcard) ────────────────
+-- Payload format: { action = "showCard", data = { type = "bank_card", ... } }
 
+RegisterNetEvent("bankcard:show", function(payload)
+    if not payload then return end
+    openNUI(payload)
+    log:info("Carte bancaire affichée: " .. tostring(payload.data and payload.data.type))
+end)
+
+-- ─── NUI close — commun aux deux systèmes ────────────────────────────────────
+
+-- Callback idcard (compatibilité ascendante)
 RegisterNUICallback("idcard:close", function(_, cb)
-    nuiOpen = false
-    SetNuiFocus(false, false)
-    SendNUIMessage({ action = "hideCard" })
+    closeNUI()
     TriggerServerEvent("idcard:closed")
+    cb({ ok = true })
+end)
+
+-- Callback bankcard (compatibilité ascendante)
+RegisterNUICallback("bankcard:close", function(_, cb)
+    closeNUI()
+    TriggerServerEvent("bankcard:closed")
     cb({ ok = true })
 end)
 
@@ -213,4 +236,8 @@ RegisterNetEvent("idcard:notify", function(msg, nType)
     notify(msg, nType)
 end)
 
-log:info("kt_idcard_ui v3 client chargé — 9 types de cartes")
+RegisterNetEvent("bankcard:notify", function(msg, nType)
+    notify(msg, nType)
+end)
+
+log:info("NUI unifiée chargée — 9 cartes identité + 3 cartes bancaires")

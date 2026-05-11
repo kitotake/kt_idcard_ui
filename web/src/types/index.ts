@@ -10,12 +10,34 @@ export type CardType =
   | 'ems'
   | 'company'
   | 'passport'
-  | 'bank_card' 
-  | 'bank_gold_card' 
+  | 'bank_card'
+  | 'bank_gold_card'
   | 'bank_diamond_card'
 
+// ─── Card Theme ───────────────────────────────────────────────────────────────
+
+export interface CardTheme {
+  name: string
+  accent: string
+  accentAlt: string
+  gradFrom: string
+  gradVia: string
+  gradTo: string
+  headerBg: string
+  chip: string
+  textPrimary: string
+  textSecondary: string
+  borderColor: string
+  holoBg: string
+  stripeColor: string
+  icon: string
+  agency: string
+}
+
+// ─── Bank Card ────────────────────────────────────────────────────────────────
+
 export interface BankCardData {
-  type: CardType
+  type: 'bank_card' | 'bank_gold_card' | 'bank_diamond_card'
   cardNumber: string      // "4532 1234 5678 9012"
   holderName: string
   expiry: string          // "12/28"
@@ -23,16 +45,15 @@ export interface BankCardData {
   cardNetwork: 'Visa' | 'Mastercard' | 'Amex'
   bankName: string
   iban?: string
-  balance?: number
 }
 
 // ─── Shared fields ────────────────────────────────────────────────────────────
 
 export interface BaseCardData {
-  photo?: string            // base64 ou URL
+  photo?: string
   firstname: string
   lastname: string
-  signature?: string        // base64 svg ou nom stylisé
+  signature?: string
   issued?: string
   expiry?: string
   uniqueId?: string
@@ -44,7 +65,7 @@ export interface IdentityCardData extends BaseCardData {
   type: 'identity'
   gender: 'M' | 'F'
   dateOfBirth: string
-  height: string            // ex: "178 cm"
+  height: string
   nationality: string
 }
 
@@ -53,7 +74,7 @@ export interface IdentityCardData extends BaseCardData {
 export interface DriverCardData extends BaseCardData {
   type: 'driver'
   licenseNumber: string
-  categories: string[]      // ['A', 'B', 'C']
+  categories: string[]
   points: number
   maxPoints: number
 }
@@ -63,8 +84,8 @@ export interface DriverCardData extends BaseCardData {
 export interface WeaponCardData extends BaseCardData {
   type: 'weapon'
   licenseNumber: string
-  authorizationType: string // "Port et détention"
-  accessLevel: number       // 1-5
+  authorizationType: string
+  accessLevel: number
   legalStatus: 'VALID' | 'SUSPENDED' | 'REVOKED'
   allowedWeapons: string[]
 }
@@ -97,7 +118,7 @@ export interface GovernmentCardData extends BaseCardData {
   type: 'government'
   govId: string
   function: string
-  securityLevel: number     // 1-5
+  securityLevel: number
   nationalDepartment: string
   specialAuthorizations: string[]
 }
@@ -123,7 +144,7 @@ export interface CompanyCardData extends BaseCardData {
   position: string
   companyDepartment: string
   accessLevel: number
-  companyLogo?: string      // emoji ou URL
+  companyLogo?: string
 }
 
 // ─── Passport ────────────────────────────────────────────────────────────────
@@ -135,7 +156,7 @@ export interface PassportCardData extends BaseCardData {
   dateOfBirth: string
   gender: 'M' | 'F'
   issuingCountry: string
-  mrz: string               // Machine Readable Zone
+  mrz: string
 }
 
 // ─── Union ───────────────────────────────────────────────────────────────────
@@ -151,7 +172,30 @@ export type CardData =
   | CompanyCardData
   | PassportCardData
   | BankCardData
+// ─── License Payload ─────────────────────────────────────────────────────
 
+export interface DrivingMenuPayload {
+  licenses: Array<{
+    type: string
+    label: string
+    icon: string
+    owned: boolean
+  }>
+}
+
+export interface LicensesPayload {
+  firstname: string
+  lastname: string
+  photo?: string
+  unique_id: string
+  licenses: Array<{
+    type: string
+    label: string
+    icon: string
+    valid: boolean
+  }>
+  checked_by?: string
+}
 // ─── NUI Messages ────────────────────────────────────────────────────────────
 
 export interface ShowCardPayload {

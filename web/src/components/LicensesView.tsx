@@ -63,7 +63,7 @@ export function LicensesView({ data, capturedPhoto }: Props) {
       </div>
 
       <div className="lic-list">
-        {(data.licenses ?? []).map(lic => (
+        {(data.licenses ?? []).map((lic: typeof data.licenses[number]) => (
           <div key={lic.type} className={`lic-item ${lic.valid ? 'lic-item--valid' : 'lic-item--invalid'}`}>
             <div className="lic-item__icon">
               <FontAwesomeIcon icon={resolveIcon(lic.icon)} />

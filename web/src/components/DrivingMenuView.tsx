@@ -43,7 +43,7 @@ export function DrivingMenuView({ data, onClose }: Props) {
       </div>
 
       <div className="drv-list">
-        {(data.licenses ?? []).map(lic => (
+        {(data.licenses ?? []).map((lic: typeof data.licenses[number]) => (
           <div
             key={lic.type}
             className={`drv-item ${lic.owned ? 'drv-item--owned' : ''}`}

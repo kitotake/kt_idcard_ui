@@ -1,6 +1,6 @@
 import { motion } from 'framer-motion'
 import { QRCodeSVG } from 'qrcode.react'
-import type { CardType, CardData } from '../types'
+import type { CardType, CardData, CardTheme, BankCardData } from '../types'
 import type {
   IdentityCardData, DriverCardData, WeaponCardData, PoliceCardData,
   MairieCardData, GovernmentCardData, EMSCardData, CompanyCardData, PassportCardData
@@ -10,6 +10,7 @@ import {
   PhotoPlaceholder, HoloStrip, SecurityOverlay, SecureQR,
   SignatureLine, AccessBadge, StatusBadge, Field, Chip, Barcode, PointsGauge
 } from './CardParts'
+import { BankCardComponent } from './Bankcardcomponent'
 
 // ─── Card animation variants ──────────────────────────────────────────────────
 const cardVariants = {
@@ -100,7 +101,7 @@ function PhotoBox({ photo, type, size = 90 }: { photo?: string; type: CardType; 
 }
 
 // ─── Divider ─────────────────────────────────────────────────────────────────
-function Divider({ theme }: { theme: ReturnType<typeof THEMES[keyof typeof THEMES]> }) {
+function Divider({ theme }: { theme: CardTheme }) {
   return <div style={{ height: 1, background: `linear-gradient(90deg, ${theme.accent}40, transparent)`, margin: '8px 0' }} />
 }
 
@@ -669,9 +670,10 @@ function PassportCard({ data }: { data: PassportCardData }) {
 interface IDCardProps {
   type: CardType
   data: CardData
+  isBankCard?: boolean
 }
 
-export function IDCard({ type, data }: IDCardProps) {
+export function IDCard({ type, data, isBankCard }: IDCardProps) {
   switch (type) {
     case 'identity':   return <IdentityCard   data={data as IdentityCardData} />
     case 'driver':     return <DriverCard     data={data as DriverCardData} />
@@ -682,6 +684,10 @@ export function IDCard({ type, data }: IDCardProps) {
     case 'ems':        return <EMSCard        data={data as EMSCardData} />
     case 'company':    return <CompanyCard    data={data as CompanyCardData} />
     case 'passport':   return <PassportCard   data={data as PassportCardData} />
+    case 'bank_card':
+    case 'bank_gold_card':
+    case 'bank_diamond_card':
+      return <BankCardComponent data={data as BankCardData} />
     default:           return null
   }
 }

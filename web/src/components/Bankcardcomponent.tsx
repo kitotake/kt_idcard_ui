@@ -68,12 +68,6 @@ function NFCIcon({ color }: { color: string }) {
 
 // ─── Format helpers ───────────────────────────────────────────────────────────
 
-function fmtBalance(n: number): string {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(2)}M`
-  if (n >= 1_000)     return `$${(n / 1_000).toFixed(1)}K`
-  return `$${n.toLocaleString('fr-FR')}`
-}
-
 function fmtNumber(n: string): string {
   return n.replace(/\s/g, '').replace(/(.{4})/g, '$1 ').trim()
 }
@@ -100,21 +94,11 @@ function CardBody({ data, textColor, subColor, showAmex }: CardBodyProps) {
       justifyContent: 'space-between',
     }}>
 
-      {/* Row 1 — Bank name + balance */}
+      {/* Row 1 — Bank name */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ ...raj, fontSize: 20, fontWeight: 700, color: textColor, letterSpacing: 1 }}>
           {data.bankName}
         </div>
-        {data.balance !== undefined && (
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ ...mono, fontSize: 7, letterSpacing: 2, color: subColor, marginBottom: 2 }}>
-              SOLDE
-            </div>
-            <div style={{ ...raj, fontSize: 16, fontWeight: 700, color: textColor }}>
-              {fmtBalance(data.balance)}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Row 2 — Chip + NFC */}

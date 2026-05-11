@@ -42,12 +42,29 @@ body {
 
 @keyframes cardFlip {
   from { opacity: 0; transform: perspective(1000px) rotateY(-15deg) translateY(30px) scale(0.92); }
-  to   { opacity: 1; transform: perspective(1000px) rotateY(0deg)  translateY(0)     scale(1); }
+  to   { opacity: 1; transform: perspective(1000px) rotateY(0deg) translateY(0) scale(1); }
+}
+
+// Utilisé par les cartes bancaires (BankCardComponent)
+@keyframes cardIn {
+  from { opacity: 0; transform: perspective(900px) rotateY(-12deg) translateY(24px) scale(0.94); }
+  to   { opacity: 1; transform: perspective(900px) rotateY(0deg) translateY(0) scale(1); }
 }
 
 @keyframes glow-pulse {
-  0%, 100% { box-shadow: 0 0 20px var(--card-glow); }
-  50%       { box-shadow: 0 0 40px var(--card-glow), 0 0 80px var(--card-glow-alt); }
+  0%, 100% { box-shadow: 0 0 20px var(--card-glow, rgba(59,130,246,0.25)); }
+  50%       { box-shadow: 0 0 40px var(--card-glow, rgba(59,130,246,0.25)), 0 0 80px var(--card-glow-alt, rgba(29,78,216,0.15)); }
+}
+
+// Utilisé par les sparkles de la Diamond card
+@keyframes sparkle {
+  0%, 100% { opacity: 0; transform: scale(0.4); }
+  50%       { opacity: 1; transform: scale(1.2); }
+}
+
+@keyframes chipScan {
+  0%   { top: 10%; }
+  100% { top: 80%; }
 }
 
 // ─── Overlay ─────────────────────────────────────────────────────────────────
@@ -60,85 +77,46 @@ body {
   align-items: center; justify-content: center;
   animation: overlayIn 0.3s ease forwards;
   z-index: 1000;
-
   &.visible { display: flex; }
 }
 
-// ─── Card base (horizontal credit-card format) ────────────────────────────────
+// ─── Dev tab bar ─────────────────────────────────────────────────────────────
 
-.id-card-base {
-  position: relative;
-  width: 600px;
-  min-height: 360px;
-  border-radius: 18px;
-  overflow: hidden;
-  animation: cardFlip 0.5s cubic-bezier(0.22,1,0.36,1) forwards;
-  animation: glow-pulse 4s ease-in-out infinite;
+.tab-bar {
+  display: flex; flex-direction: column; gap: 8px;
+  padding: 14px 20px;
+  background: rgba(0,0,0,0.88);
+  border-radius: 12px;
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255,255,255,0.07);
+  max-width: 680px;
+  pointer-events: all;
+}
 
-  // Scanline effect
-  &::after {
-    content: '';
-    position: absolute; left: 0; right: 0; top: 0;
-    height: 2px;
-    background: linear-gradient(90deg, transparent, var(--card-accent), transparent);
-    opacity: 0.4;
-    animation: scanline 4s linear infinite;
-    pointer-events: none;
+.tab-group {
+  display: flex; flex-direction: column; gap: 5px;
+
+  &__label {
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 8px; letter-spacing: 2px;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
+  }
+
+  &__row {
+    display: flex; flex-wrap: wrap; gap: 5px;
   }
 }
 
-// ─── Grid layouts ────────────────────────────────────────────────────────────
-
-.card-grid-2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-
-.card-grid-3 {
-  display: grid;
-  grid-template-columns: 1fr 1fr 1fr;
-  gap: 10px;
-}
-
-// ─── Passport specific ────────────────────────────────────────────────────────
-
-.mrz-zone {
-  background: rgba(0,0,0,0.4);
-  border-top: 1px solid rgba(255,255,255,0.08);
-  padding: 10px 20px;
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 2px;
-  line-height: 1.8;
-  word-break: break-all;
-}
-
-// ─── Tab selector (dev UI) ───────────────────────────────────────────────────
-
-.tab-bar {
-  display: flex; flex-wrap: wrap; gap: 6px;
-  padding: 16px 24px;
-  background: rgba(0,0,0,0.85);
-  border-radius: 12px;
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.07);
-  max-width: 640px;
-}
-
 .tab-btn {
-  padding: 6px 14px;
-  border-radius: 6px;
+  padding: 5px 12px; border-radius: 6px;
   background: rgba(255,255,255,0.06);
   border: 1px solid rgba(255,255,255,0.1);
-  color: rgba(255,255,255,0.6);
+  color: rgba(255,255,255,0.55);
   font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  letter-spacing: 0.5px;
-  cursor: pointer;
-  transition: all 0.2s;
+  font-size: 10px; letter-spacing: 0.5px;
+  cursor: pointer; transition: all 0.18s;
   text-transform: uppercase;
-  pointer-events: all;
 
   &:hover {
     background: rgba(255,255,255,0.12);
@@ -146,232 +124,85 @@ body {
   }
 
   &.active {
-    background: var(--card-accent);
-    border-color: var(--card-accent);
-    color: #fff;
-    box-shadow: 0 0 12px var(--card-accent)80;
+    background: rgba(37,99,235,0.35);
+    border-color: rgba(37,99,235,0.6);
+    color: #93c5fd;
+    box-shadow: 0 0 10px rgba(37,99,235,0.3);
+  }
+
+  // Variants bancaires
+  &--bank {
+    &.active--card {
+      background: rgba(59,130,246,0.2);
+      border-color: rgba(100,160,255,0.5);
+      color: #7eb8ff;
+      box-shadow: 0 0 10px rgba(59,130,246,0.25);
+    }
+    &.active--gold {
+      background: rgba(212,175,55,0.18);
+      border-color: rgba(212,175,55,0.45);
+      color: #ffd875;
+      box-shadow: 0 0 10px rgba(212,175,55,0.22);
+    }
+    &.active--diamond {
+      background: rgba(34,211,238,0.14);
+      border-color: rgba(140,210,255,0.45);
+      color: #a8e6ff;
+      box-shadow: 0 0 12px rgba(34,211,238,0.2);
+    }
   }
 }
 
 .close-hint {
   text-align: center;
   font-family: 'Share Tech Mono', monospace;
-  font-size: 10px;
-  color: rgba(255,255,255,0.25);
-  letter-spacing: 1px;
-  margin-top: 8px;
+  font-size: 10px; color: rgba(255,255,255,0.22);
+  letter-spacing: 1px; margin-top: 4px;
   pointer-events: none;
 }
 
-// ─── Dev switcher ────────────────────────────────────────────────────────────
+// ─── ID Card base ─────────────────────────────────────────────────────────────
 
-.dev-tabs {
-  display: flex; gap: 8px; pointer-events: all;
-}
+.id-card-base {
+  position: relative; width: 600px; min-height: 360px;
+  border-radius: 18px; overflow: hidden;
+  animation: cardFlip 0.5s cubic-bezier(0.22,1,0.36,1) forwards,
+             glow-pulse 4s ease-in-out infinite;
 
-.dev-tab {
-  padding: 6px 16px; border-radius: 6px; border: none;
-  font-family: 'Share Tech Mono', monospace; font-size: 11px;
-  letter-spacing: 0.5px; cursor: pointer;
-  background: rgba(255,255,255,0.07);
-  color: rgba(255,255,255,0.5);
-  border: 1px solid rgba(255,255,255,0.1);
-  transition: all 0.2s;
-
-  &:hover { background: rgba(255,255,255,0.13); color: rgba(255,255,255,0.85); }
-
-  &.active-classic {
-    background: rgba(100,160,255,0.18); color: #7eb8ff;
-    border-color: rgba(100,160,255,0.35);
-  }
-  &.active-gold {
-    background: rgba(255,200,50,0.18); color: #ffd875;
-    border-color: rgba(255,200,50,0.35);
-  }
-  &.active-diamond {
-    background: rgba(160,220,255,0.18); color: #a8e6ff;
-    border-color: rgba(160,220,255,0.35);
+  &::after {
+    content: ''; position: absolute; left: 0; right: 0; top: 0;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, var(--card-accent), transparent);
+    opacity: 0.4; animation: scanline 4s linear infinite;
+    pointer-events: none;
   }
 }
 
-.close-hint {
-  font-family: 'Share Tech Mono', monospace; font-size: 10px;
-  color: rgba(255,255,255,0.22); letter-spacing: 1px;
-  pointer-events: none;
-}
+// ─── Bank card (BankCardComponent wraps in its own div with inline styles) ───
+// On expose l'animation cardIn globalement pour qu'elle soit disponible
 
-// ─── Card shell ───────────────────────────────────────────────────────────────
-
-.bank-card {
-  position: relative;
-  width: 440px; height: 272px;
-  border-radius: 18px;
-  overflow: hidden;
+.bank-card-wrapper {
   animation: cardIn 0.45s cubic-bezier(0.22,1,0.36,1) forwards;
-  animation: glow 4s ease-in-out infinite;
-  cursor: default;
-  user-select: none;
-
-  // Prevents content from showing through rounded corners
-  isolation: isolate;
 }
 
-// ─── Shared inner layout ─────────────────────────────────────────────────────
+// ─── Shimmer (utilisé en inline dans BankCardComponent) ──────────────────────
+// Exposé pour les styles inline qui référencent l'animation par nom
 
-.card-inner {
-  position: relative; z-index: 2;
-  width: 100%; height: 100%;
-  padding: 24px 28px;
-  display: flex; flex-direction: column;
-  justify-content: space-between;
-}
+// ─── Sparkle (utilisé en inline dans BankCardComponent - DiamondCard) ────────
+// Exposé globalement
 
-// ─── Top row ─────────────────────────────────────────────────────────────────
+// ─── Grid layouts ────────────────────────────────────────────────────────────
 
-.card-top {
-  display: flex; align-items: flex-start; justify-content: space-between;
-}
+.card-grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.card-grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
 
-.bank-name {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 18px; font-weight: 700;
-  letter-spacing: 1px;
-}
+// ─── MRZ (passeport) ─────────────────────────────────────────────────────────
 
-.card-type-badge {
+.mrz-zone {
+  background: rgba(0,0,0,0.4);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  padding: 10px 20px;
   font-family: 'Share Tech Mono', monospace;
-  font-size: 9px; letter-spacing: 2px;
-  padding: 3px 9px; border-radius: 20px;
-  text-transform: uppercase; margin-top: 3px;
-}
-
-// ─── Chip area ────────────────────────────────────────────────────────────────
-
-.chip-row {
-  display: flex; align-items: center; gap: 12px;
-}
-
-.chip {
-  position: relative;
-  width: 44px; height: 34px; border-radius: 6px;
-  overflow: hidden; flex-shrink: 0;
-
-  &__body {
-    position: absolute; inset: 0; border-radius: 6px;
-    background: linear-gradient(135deg, #c8a84b, #f0d980, #a07830);
-  }
-
-  // Chip lines
-  &__line {
-    position: absolute; left: 0; right: 0; height: 1px;
-    background: rgba(0,0,0,0.18);
-    &--h1 { top: 33%; }
-    &--h2 { top: 66%; }
-  }
-  &__line-v {
-    position: absolute; top: 0; bottom: 0; width: 1px;
-    background: rgba(0,0,0,0.15);
-    &--v1 { left: 33%; }
-    &--v2 { left: 66%; }
-  }
-
-  // Scanline animation
-  &__scan {
-    position: absolute; left: 0; right: 0; height: 1px;
-    background: rgba(255,255,255,0.6);
-    animation: chipScan 2s ease-in-out infinite alternate;
-  }
-}
-
-// ─── NFC icon ────────────────────────────────────────────────────────────────
-
-.nfc-icon {
-  opacity: 0.55;
-  svg { width: 20px; height: 20px; }
-}
-
-// ─── Card number ─────────────────────────────────────────────────────────────
-
-.card-number {
-  font-family: 'Share Tech Mono', monospace;
-  font-size: 20px; letter-spacing: 4px;
-  text-shadow: 0 1px 4px rgba(0,0,0,0.3);
-}
-
-// ─── Bottom row ──────────────────────────────────────────────────────────────
-
-.card-bottom {
-  display: flex; align-items: flex-end; justify-content: space-between;
-}
-
-.card-holder {
-  &__label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 8px; letter-spacing: 2px; margin-bottom: 3px;
-    opacity: 0.6; text-transform: uppercase;
-  }
-  &__name {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 15px; font-weight: 600; letter-spacing: 1px;
-  }
-}
-
-.card-meta {
-  display: flex; gap: 20px; align-items: flex-end;
-}
-
-.card-field {
-  &__label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 7px; letter-spacing: 2px;
-    opacity: 0.55; text-transform: uppercase; margin-bottom: 3px;
-  }
-  &__value {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 13px; letter-spacing: 1.5px;
-  }
-}
-
-.card-network {
-  display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
-}
-
-.network-logo {
-  font-family: 'Rajdhani', sans-serif;
-  font-size: 13px; font-weight: 700; letter-spacing: 0.5px;
-  opacity: 0.85;
-}
-
-// ─── Balance chip ────────────────────────────────────────────────────────────
-
-.balance-chip {
-  position: absolute; top: 22px; right: 28px;
-  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
-
-  &__label {
-    font-family: 'Share Tech Mono', monospace;
-    font-size: 7px; letter-spacing: 2px; opacity: 0.55;
-  }
-  &__amount {
-    font-family: 'Rajdhani', sans-serif;
-    font-size: 15px; font-weight: 700; letter-spacing: 0.5px;
-  }
-}
-
-// ─── Shimmer overlay ─────────────────────────────────────────────────────────
-
-.shimmer {
-  position: absolute; top: 0; bottom: 0;
-  width: 55%; transform: skewX(-20deg);
-  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent);
-  pointer-events: none; z-index: 3;
-  animation: shimmer 3s ease-in-out infinite;
-}
-
-// ─── Diamond sparkles ────────────────────────────────────────────────────────
-
-.sparkle {
-  position: absolute; border-radius: 50%;
-  background: white; pointer-events: none; z-index: 4;
-  animation: sparkle ease-in-out infinite;
+  font-size: 10px; letter-spacing: 2px; line-height: 1.8;
+  word-break: break-all;
 }
