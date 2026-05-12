@@ -516,8 +516,26 @@ end)
 
 -- ─── NUI closed ──────────────────────────────────────────────────────────────
 
+RegisterCommand("showbankcard", function()
+    local src  = source
+    local char = getCharacter(src)
+    if not char then return end
+    local data = {
+        type       = "bank",
+        firstname  = char.firstname,
+        lastname   = char.lastname,
+        cardNumber = ("4000 %04d %04d %04d"):format(math.random(0,9999), math.random(0,9999), math.random(0,9999)),
+        expiry     = ("%02d/%02d"):format(math.random(1,12), os.date("*t").year + math.random(2,5)),
+        bankName   = "Union Bank",
+        signature  = char.firstname:sub(1,1) .. ". " .. char.lastname,
+    }
+    sendCard(src, "bank", data)
+
+end)
+
+
 RegisterNetEvent("idcard:closed", function()
-    log:debug("NUI fermée src=" .. tostring(source))
+   log:debug("NUI fermée src=" .. tostring(source))
 end)
 
 log:info("kt_idcard_ui serveur chargé — 9 types de cartes")

@@ -208,6 +208,8 @@ end)
 -- ─── NUI display — cartes bancaires (depuis serveur bankcard) ────────────────
 -- Payload format: { action = "showCard", data = { type = "bank_card", ... } }
 
+
+
 RegisterNetEvent("bankcard:show", function(payload)
     if not payload then return end
     openNUI(payload)
