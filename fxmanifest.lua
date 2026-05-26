@@ -3,8 +3,8 @@ game 'gta5'
 
 name        'kt_idcard_ui'
 author      'Kitotake'
-description 'Système UI carte d\'identité premium v3 — 9 types de cartes'
-version     '3.0.0'
+description 'Système UI carte identité premium v3 — 9 types + 3 cartes bancaires + boutique documents'
+version     '3.2.0'
 
 dependencies {
     'oxmysql',
@@ -27,15 +27,19 @@ shared_scripts {
 
 client_scripts {
     'client/main.lua',
+    'client/shop_ped.lua',      -- PNJ boutique documents
+    'client/photo_capture.lua',
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
     'server/main.lua',
+    'server/shop.lua',          -- logique boutique
+    'server/photo_save.lua',
 }
 
 server_exports {
-    'ShowCard',         -- exports["kt_idcard_ui"]:ShowCard(src, cardType, data)
+    'ShowCard',
     'UseIdentityCard',
     'UseLicenseCard',
     'UseWeaponCard',

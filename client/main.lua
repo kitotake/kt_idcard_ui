@@ -1,11 +1,13 @@
 -- client/main.lua
 -- kt_idcard_ui v3 + kt_bankcard_ui — CLIENT FUSIONNÉ
--- NUI unique gérant 9 cartes identité + 3 cartes bancaires
+-- Fixes : NUI focus caméra, blips map, debounce véhicule
 
 local log     = Logger:child("UNIFIED:CLIENT")
 local nuiOpen = false
 local npcId        = nil
 local npcDrivingId = nil
+local blipMairie   = nil
+local blipDriving  = nil
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -26,6 +28,20 @@ end
 
 local function isInteractAvailable()
     return GetResourceState(Config.resources.interact) == "started"
+end
+
+-- ─── Blips ───────────────────────────────────────────────────────────────────
+
+local function addBlip(coords, sprite, color, label)
+    local blip = AddBlipForCoord(coords.x, coords.y, coords.z)
+    SetBlipSprite(blip, sprite)
+    SetBlipColour(blip, color)
+    SetBlipScale(blip, 0.8)
+    SetBlipAsShortRange(blip, true)
+    BeginTextCommandSetBlipName("STRING")
+    AddTextComponentSubstringPlayerName(label)
+    EndTextCommandSetBlipName(blip)
+    return blip
 end
 
 -- ─── Spawn / remove NPC ──────────────────────────────────────────────────────
@@ -65,11 +81,16 @@ local function removePed(ped)
     DeleteEntity(ped)
 end
 
+local function removeBlip(blip)
+    if blip and DoesBlipExist(blip) then RemoveBlip(blip) end
+end
+
 -- ─── NUI open/close helpers ──────────────────────────────────────────────────
+-- FIX : SetNuiFocus(true, true) pour bloquer aussi la caméra pendant la lecture
 
 local function openNUI(payload)
     nuiOpen = true
-    SetNuiFocus(true, false)
+    SetNuiFocus(true, true)   -- FIX: 2ème arg = true bloque la caméra
     SendNUIMessage(payload)
 end
 
@@ -85,16 +106,25 @@ RegisterNetEvent("union:player:spawned", function()
     Wait(500)
     if not (npcId and DoesEntityExist(npcId)) then
         npcId = spawnPed(Config.npc, "idcard:npc:interact")
+        if npcId then
+            blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
+        end
     end
     if not (npcDrivingId and DoesEntityExist(npcDrivingId)) then
         npcDrivingId = spawnPed(Config.npcDriving, "idcard:driving:interact")
+        if npcDrivingId then
+            blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
+        end
     end
 end)
 
 AddEventHandler("union:character:unloaded", function()
     removePed(npcId)
     removePed(npcDrivingId)
+    removeBlip(blipMairie)
+    removeBlip(blipDriving)
     npcId = nil ; npcDrivingId = nil
+    blipMairie = nil ; blipDriving = nil
     if nuiOpen then closeNUI() end
 end)
 
@@ -164,8 +194,10 @@ CreateThread(function()
 end)
 
 -- ─── Check permis au volant ───────────────────────────────────────────────────
+-- FIX : debounce 60s pour éviter le spam au moindre saut de siège
 
-local lastVehicle = 0
+local lastVehicle       = 0
+local lastLicenseCheck  = 0
 
 CreateThread(function()
     local inVehicle = false
@@ -177,8 +209,11 @@ CreateThread(function()
         if DoesEntityExist(veh) and veh ~= 0 then
             if not inVehicle then
                 inVehicle = true
-                if veh ~= lastVehicle then
-                    lastVehicle = veh
+                local now = GetGameTimer()
+                -- FIX: nouveau véhicule ET cooldown 60s entre deux checks
+                if veh ~= lastVehicle and (now - lastLicenseCheck) > 60000 then
+                    lastVehicle      = veh
+                    lastLicenseCheck = now
                     local cls     = GetVehicleClass(veh)
                     local licType = Config.licenses.vehicleClasses[cls]
                     if licType then
@@ -197,7 +232,7 @@ CreateThread(function()
     end
 end)
 
--- ─── NUI display — cartes identité (depuis serveur idcard) ───────────────────
+-- ─── NUI display — cartes identité ───────────────────────────────────────────
 
 RegisterNetEvent("idcard:show", function(payload)
     if not payload then return end
@@ -205,10 +240,7 @@ RegisterNetEvent("idcard:show", function(payload)
     log:info("Carte affichée: " .. tostring(payload.cardType))
 end)
 
--- ─── NUI display — cartes bancaires (depuis serveur bankcard) ────────────────
--- Payload format: { action = "showCard", data = { type = "bank_card", ... } }
-
-
+-- ─── NUI display — cartes bancaires ──────────────────────────────────────────
 
 RegisterNetEvent("bankcard:show", function(payload)
     if not payload then return end
@@ -216,19 +248,24 @@ RegisterNetEvent("bankcard:show", function(payload)
     log:info("Carte bancaire affichée: " .. tostring(payload.data and payload.data.type))
 end)
 
--- ─── NUI close — commun aux deux systèmes ────────────────────────────────────
+-- ─── NUI close ───────────────────────────────────────────────────────────────
 
--- Callback idcard (compatibilité ascendante)
 RegisterNUICallback("idcard:close", function(_, cb)
     closeNUI()
     TriggerServerEvent("idcard:closed")
     cb({ ok = true })
 end)
 
--- Callback bankcard (compatibilité ascendante)
 RegisterNUICallback("bankcard:close", function(_, cb)
     closeNUI()
     TriggerServerEvent("bankcard:closed")
+    cb({ ok = true })
+end)
+
+-- ─── Montrer sa carte aux proches (bouton NUI) ────────────────────────────────
+
+RegisterNUICallback("idcard:showNearby", function(data, cb)
+    TriggerServerEvent("idcard:showToNearby", data.cardType)
     cb({ ok = true })
 end)
 
