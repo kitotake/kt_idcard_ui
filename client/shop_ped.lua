@@ -7,95 +7,107 @@ local shopBlip  = nil
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
-local function loadModel(hash)
-    if HasModelLoaded(hash) then return true end
-    RequestModel(hash)
-    local t = GetGameTimer()
-    while not HasModelLoaded(hash) do
-        Wait(50)
-        if GetGameTimer() - t > 8000 then return false end
-    end
-    return true
-end
-
 local function notify(msg, nType)
     lib.notify({ description = tostring(msg), type = nType or "info", duration = 4000 })
 end
 
 -- ─── Spawn du PNJ boutique ────────────────────────────────────────────────────
 
+local function addShopBlip()
+    local cfg = Config.PNJ
+    if not cfg.blip or not cfg.blip.enabled then return end
+    if shopBlip and DoesBlipExist(shopBlip) then return end
+
+    shopBlip = AddBlipForCoord(cfg.coords.x, cfg.coords.y, cfg.coords.z)
+    SetBlipSprite(shopBlip, cfg.blip.sprite or 408)
+    SetBlipColour(shopBlip, cfg.blip.color or 5)
+    SetBlipScale(shopBlip, cfg.blip.scale or 0.8)
+    SetBlipAsShortRange(shopBlip, true)
+    BeginTextCommandSetBlipName("STRING")
+    AddTextComponentSubstringPlayerName(cfg.blip.label or cfg.label or "État Civil")
+    EndTextCommandSetBlipName(shopBlip)
+end
+
 local function spawnShopPed()
     local cfg = Config.PNJ
 
     print("^3[SHOP]^7 Début spawn")
 
-    local hash = GetHashKey(cfg.model)
+    shopPedId = NPC.SpawnPed(cfg, "SHOP")
 
-    print("^3[SHOP]^7 Modèle :", cfg.model)
-
-    if not loadModel(hash) then
-        print("^1[SHOP]^7 Impossible de charger :", cfg.model)
+    if not shopPedId then
+        print("^1[SHOP]^7 Échec création PNJ boutique")
         return
     end
 
-    local c = cfg.coords
+    addShopBlip()
 
-    print("^3[SHOP]^7 Position :", c.x, c.y, c.z)
-
-    local ped = CreatePed(
-        4,
-        hash,
-        c.x,
-        c.y,
-        c.z,
-        cfg.heading,
-        false,
-        false
-    )
-
-    print("^3[SHOP]^7 Handle :", ped)
-
-    if not DoesEntityExist(ped) then
-        print("^1[SHOP]^7 CreatePed a échoué")
-        return
+    local targetReady = NPC.TryAddTargetEntity(shopPedId, cfg, "idcard:shop:interact")
+    if not targetReady then
+        print("^3[SHOP]^7 kt_interact indisponible ou incompatible, fallback touche E actif")
     end
-
-    print("^2[SHOP]^7 PNJ boutique créé")
-
-    FreezeEntityPosition(ped, true)
-    SetEntityInvincible(ped, true)
-    SetBlockingOfNonTemporaryEvents(ped, true)
-
-    shopPedId = ped
 end
 
 local function removeShopPed()
-    if shopPedId and DoesEntityExist(shopPedId) then
-        if GetResourceState(Config.resources.context) == "started" then
-            pcall(function()
-                exports[Config.resources.context]:RemoveMenuZone("idcard_shop_zone")
-            end)
-        end
-        SetEntityAsMissionEntity(shopPedId, false, true)
-        DeleteEntity(shopPedId)
-        shopPedId = nil
-    end
+    NPC.RemoveTargetEntity(shopPedId)
+    NPC.DeletePed(shopPedId)
+    shopPedId = nil
+
     if shopBlip and DoesBlipExist(shopBlip) then
         RemoveBlip(shopBlip)
         shopBlip = nil
     end
 end
 
--- ─── Spawn / despawn sur login/logout ────────────────────────────────────────
-RegisterNetEvent("union:player:spawned", function()
-    print("^2[SHOP]^7 union:player:spawned reçu")
+local function waitForCharacterReady(timeout)
+    local startedAt = GetGameTimer()
 
-    Wait(600)
+    while GetGameTimer() - startedAt < (timeout or 15000) do
+        if LocalPlayer and LocalPlayer.state and LocalPlayer.state.character then
+            return true
+        end
+        Wait(250)
+    end
+
+    return false
+end
+
+-- ─── Spawn / despawn sur login/logout et restart ressource ───────────────────
+local function ensureShopPedSpawned(reason)
+    print(("^2[SHOP]^7 Vérification spawn PNJ boutique (%s)"):format(reason or "manuel"))
 
     if not (shopPedId and DoesEntityExist(shopPedId)) then
         spawnShopPed()
+    elseif not (shopBlip and DoesBlipExist(shopBlip)) then
+        addShopBlip()
     end
+end
+
+RegisterNetEvent("union:player:spawned", function()
+    Wait(600)
+    ensureShopPedSpawned("union:player:spawned")
 end)
+
+AddEventHandler("onClientResourceStart", function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+
+    CreateThread(function()
+        Wait(1700)
+        if waitForCharacterReady(15000) then
+            ensureShopPedSpawned("resource start")
+        else
+            print("^3[SHOP]^7 Aucun personnage chargé, spawn PNJ boutique reporté à union:player:spawned")
+        end
+    end)
+end)
+
+AddEventHandler("union:character:unloaded", removeShopPed)
+
+AddEventHandler("idcard:shop:interact", function()
+    TriggerServerEvent("idcard:shop:open")
+end)
+
+NPC.StartFallbackInteraction("idcard_shop", function() return shopPedId end, Config.PNJ, "idcard:shop:interact")
 
 -- ─── Réception du catalogue depuis le serveur → ouvre la NUI boutique ────────
 

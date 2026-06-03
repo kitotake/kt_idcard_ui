@@ -15,21 +15,6 @@ local function notify(msg, nType)
     lib.notify({ description = tostring(msg), type = nType or "info", duration = 4000 })
 end
 
-local function loadModel(hash)
-    if HasModelLoaded(hash) then return true end
-    RequestModel(hash)
-    local t = GetGameTimer()
-    while not HasModelLoaded(hash) do
-        Wait(50)
-        if GetGameTimer() - t > 8000 then return false end
-    end
-    return true
-end
-
-local function isInteractAvailable()
-    return GetResourceState(Config.resources.interact) == "started"
-end
-
 -- ─── Blips ───────────────────────────────────────────────────────────────────
 
 local function addBlip(coords, sprite, color, label)
@@ -47,52 +32,21 @@ end
 -- ─── Spawn / remove NPC ──────────────────────────────────────────────────────
 
 local function spawnPed(cfg, event)
-    print("^3[IDCARD]^7 Modèle :", cfg.model)
+    local ped = NPC.SpawnPed(cfg, "IDCARD")
 
-    local hash = GetHashKey(cfg.model)
-
-    if not loadModel(hash) then
-        print("^1[IDCARD]^7 Impossible de charger :", cfg.model)
-        return nil
+    if ped then
+        local targetReady = NPC.TryAddTargetEntity(ped, cfg.interact or cfg, event)
+        if not targetReady then
+            print("^3[IDCARD]^7 kt_interact indisponible ou incompatible, fallback touche E actif")
+        end
     end
-
-    local c = cfg.coords
-
-    print("^3[IDCARD]^7 Spawn :", c.x, c.y, c.z)
-
-    local ped = CreatePed(
-        4,
-        hash,
-        c.x,
-        c.y,
-        c.z,
-        cfg.heading,
-        false,
-        false
-    )
-
-    print("^3[IDCARD]^7 Handle :", ped)
-
-    if not DoesEntityExist(ped) then
-        print("^1[IDCARD]^7 CreatePed a échoué")
-        return nil
-    end
-
-    print("^2[IDCARD]^7 Ped créé avec succès")
-
-    SetEntityInvincible(ped, true)
-    SetBlockingOfNonTemporaryEvents(ped, true)
-    FreezeEntityPosition(ped, true)
 
     return ped
 end
+
 local function removePed(ped)
-    if not ped or not DoesEntityExist(ped) then return end
-    if isInteractAvailable() then
-        pcall(function() exports[Config.resources.interact]:RemoveTargetEntity(ped) end)
-    end
-    SetEntityAsMissionEntity(ped, false, true)
-    DeleteEntity(ped)
+    NPC.RemoveTargetEntity(ped)
+    NPC.DeletePed(ped)
 end
 
 local function removeBlip(blip)
@@ -114,20 +68,32 @@ local function closeNUI()
     SendNUIMessage({ action = "hideCard" })
 end
 
--- ─── Spawn au login ──────────────────────────────────────────────────────────
+local function waitForCharacterReady(timeout)
+    local startedAt = GetGameTimer()
 
-RegisterNetEvent("union:player:spawned", function()
-    print("^2[IDCARD]^7 union:player:spawned reçu")
+    while GetGameTimer() - startedAt < (timeout or 15000) do
+        if LocalPlayer and LocalPlayer.state and LocalPlayer.state.character then
+            return true
+        end
+        Wait(250)
+    end
 
-    Wait(500)
+    return false
+end
+
+-- ─── Spawn au login / restart ressource ──────────────────────────────────────
+
+local function ensureNpcSpawned(reason)
+    print(("^2[IDCARD]^7 Vérification spawn PNJ (%s)"):format(reason or "manuel"))
 
     if not (npcId and DoesEntityExist(npcId)) then
         print("^3[IDCARD]^7 Spawn NPC mairie")
         npcId = spawnPed(Config.npc, "idcard:npc:interact")
 
         if npcId then
-            print("^2[IDCARD]^7 NPC mairie créé :", npcId)
-            blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
+            if not (blipMairie and DoesBlipExist(blipMairie)) then
+                blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
+            end
         else
             print("^1[IDCARD]^7 Échec création NPC mairie")
         end
@@ -138,12 +104,31 @@ RegisterNetEvent("union:player:spawned", function()
         npcDrivingId = spawnPed(Config.npcDriving, "idcard:driving:interact")
 
         if npcDrivingId then
-            print("^2[IDCARD]^7 NPC auto-école créé :", npcDrivingId)
-            blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
+            if not (blipDriving and DoesBlipExist(blipDriving)) then
+                blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
+            end
         else
             print("^1[IDCARD]^7 Échec création NPC auto-école")
         end
     end
+end
+
+RegisterNetEvent("union:player:spawned", function()
+    Wait(500)
+    ensureNpcSpawned("union:player:spawned")
+end)
+
+AddEventHandler("onClientResourceStart", function(resourceName)
+    if resourceName ~= GetCurrentResourceName() then return end
+
+    CreateThread(function()
+        Wait(1500)
+        if waitForCharacterReady(15000) then
+            ensureNpcSpawned("resource start")
+        else
+            print("^3[IDCARD]^7 Aucun personnage chargé, spawn PNJ reporté à union:player:spawned")
+        end
+    end)
 end)
 
 AddEventHandler("union:character:unloaded", function()
@@ -160,6 +145,9 @@ end)
 
 AddEventHandler("idcard:npc:interact",     function() TriggerServerEvent("idcard:npc:interact") end)
 AddEventHandler("idcard:driving:interact", function() TriggerServerEvent("idcard:driving:interact") end)
+
+NPC.StartFallbackInteraction("idcard_mairie", function() return npcId end, Config.npc.interact, "idcard:npc:interact")
+NPC.StartFallbackInteraction("idcard_driving", function() return npcDrivingId end, Config.npcDriving.interact, "idcard:driving:interact")
 
 -- ─── Police target (kt_context) ──────────────────────────────────────────────
 -- Injecte les options de contrôle dans le menu joueur via kt_context:action

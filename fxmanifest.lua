@@ -29,6 +29,7 @@ shared_scripts {
 
 client_scripts {
     'client/logger_client.lua', -- doit rester EN PREMIER si logger pas en shared
+    'client/npc_helpers.lua',
     'client/main.lua',
     'client/shop_ped.lua',
     'client/photo_capture.lua',
