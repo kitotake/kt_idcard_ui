@@ -47,31 +47,45 @@ end
 -- ─── Spawn / remove NPC ──────────────────────────────────────────────────────
 
 local function spawnPed(cfg, event)
+    print("^3[IDCARD]^7 Modèle :", cfg.model)
+
     local hash = GetHashKey(cfg.model)
-    if not loadModel(hash) then return nil end
-    local c   = cfg.coords
-    local ped = CreatePed(4, hash, c.x, c.y, c.z - 1.0, cfg.heading, false, false)
-    SetModelAsNoLongerNeeded(hash)
-    if not DoesEntityExist(ped) then return nil end
+
+    if not loadModel(hash) then
+        print("^1[IDCARD]^7 Impossible de charger :", cfg.model)
+        return nil
+    end
+
+    local c = cfg.coords
+
+    print("^3[IDCARD]^7 Spawn :", c.x, c.y, c.z)
+
+    local ped = CreatePed(
+        4,
+        hash,
+        c.x,
+        c.y,
+        c.z,
+        cfg.heading,
+        false,
+        false
+    )
+
+    print("^3[IDCARD]^7 Handle :", ped)
+
+    if not DoesEntityExist(ped) then
+        print("^1[IDCARD]^7 CreatePed a échoué")
+        return nil
+    end
+
+    print("^2[IDCARD]^7 Ped créé avec succès")
+
     SetEntityInvincible(ped, true)
     SetBlockingOfNonTemporaryEvents(ped, true)
     FreezeEntityPosition(ped, true)
-    SetEntityVisible(ped, true, false)
-    if isInteractAvailable() then
-        pcall(function()
-            exports[Config.resources.interact]:AddTargetEntity(ped, {
-                options = {{
-                    label    = cfg.interact.label,
-                    icon     = cfg.interact.icon,
-                    distance = cfg.interact.distance,
-                    event    = event,
-                }}
-            })
-        end)
-    end
+
     return ped
 end
-
 local function removePed(ped)
     if not ped or not DoesEntityExist(ped) then return end
     if isInteractAvailable() then
@@ -103,17 +117,31 @@ end
 -- ─── Spawn au login ──────────────────────────────────────────────────────────
 
 RegisterNetEvent("union:player:spawned", function()
+    print("^2[IDCARD]^7 union:player:spawned reçu")
+
     Wait(500)
+
     if not (npcId and DoesEntityExist(npcId)) then
+        print("^3[IDCARD]^7 Spawn NPC mairie")
         npcId = spawnPed(Config.npc, "idcard:npc:interact")
+
         if npcId then
+            print("^2[IDCARD]^7 NPC mairie créé :", npcId)
             blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
+        else
+            print("^1[IDCARD]^7 Échec création NPC mairie")
         end
     end
+
     if not (npcDrivingId and DoesEntityExist(npcDrivingId)) then
+        print("^3[IDCARD]^7 Spawn NPC auto-école")
         npcDrivingId = spawnPed(Config.npcDriving, "idcard:driving:interact")
+
         if npcDrivingId then
+            print("^2[IDCARD]^7 NPC auto-école créé :", npcDrivingId)
             blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
+        else
+            print("^1[IDCARD]^7 Échec création NPC auto-école")
         end
     end
 end)
@@ -133,65 +161,55 @@ end)
 AddEventHandler("idcard:npc:interact",     function() TriggerServerEvent("idcard:npc:interact") end)
 AddEventHandler("idcard:driving:interact", function() TriggerServerEvent("idcard:driving:interact") end)
 
--- ─── Police target (kt_target) ───────────────────────────────────────────────
+-- ─── Police target (kt_context) ──────────────────────────────────────────────
+-- Injecte les options de contrôle dans le menu joueur via kt_context:action
 
-CreateThread(function()
-    while GetResourceState(Config.resources.target) ~= "started" do Wait(1000) end
-
-    local function isPolice()
-        local char = LocalPlayer.state.character
-        if not char then return false end
-        for _, j in ipairs(Config.policeJobs) do
-            if char.job == j then return true end
-        end
-        return false
+local function isPolice()
+    local char = LocalPlayer.state.character
+    if not char then return false end
+    for _, j in ipairs(Config.policeJobs) do
+        if char.job == j then return true end
     end
+    return false
+end
 
-    local function getTargetServerId(entity)
-        for _, pid in ipairs(GetActivePlayers()) do
-            if GetPlayerPed(pid) == entity then
-                return GetPlayerServerId(pid)
-            end
-        end
-        return nil
+-- Écoute les actions du menu kt_context pour les contrôles policiers
+AddEventHandler("kt_context:action", function(id, data)
+    if not isPolice() then return end
+    if id == "idcard_police_identity" and data and data.targetSid then
+        TriggerServerEvent("idcard:police:checkIdentity", data.targetSid)
+    elseif id == "idcard_police_license" and data and data.targetSid then
+        TriggerServerEvent("idcard:police:checkLicense", data.targetSid)
+    elseif id == "idcard_police_badge" and data and data.targetSid then
+        TriggerServerEvent("idcard:police:checkBadge", data.targetSid)
     end
-
-    exports[Config.resources.target]:AddTargetModel({ "mp_m_freemode_01", "mp_f_freemode_01" }, {
-        options = {
-            {
-                label       = "Contrôler l'identité",
-                icon        = "fas fa-id-card",
-                distance    = 3.0,
-                canInteract = isPolice,
-                action      = function(entity)
-                    local sid = getTargetServerId(entity)
-                    if sid then TriggerServerEvent("idcard:police:checkIdentity", sid) end
-                end,
-            },
-            {
-                label       = "Contrôler le permis",
-                icon        = "fas fa-car",
-                distance    = 3.0,
-                canInteract = isPolice,
-                action      = function(entity)
-                    local sid = getTargetServerId(entity)
-                    if sid then TriggerServerEvent("idcard:police:checkLicense", sid) end
-                end,
-            },
-            {
-                label       = "Voir badge police",
-                icon        = "fas fa-shield-halved",
-                distance    = 3.0,
-                canInteract = isPolice,
-                action      = function(entity)
-                    local sid = getTargetServerId(entity)
-                    if sid then TriggerServerEvent("idcard:police:checkBadge", sid) end
-                end,
-            },
-        }
-    })
-    log:info("Options police enregistrées")
 end)
+
+-- Injecte les options police dans le menu joueur kt_context
+AddEventHandler("kt_context:buildPlayerMenu", function(serverId, items)
+    if not isPolice() then return end
+    table.insert(items, { id = "_div_police", divider = true, label = "" })
+    table.insert(items, {
+        id          = "idcard_police_identity",
+        label       = "Contrôler l'identité",
+        icon        = "IdCard",
+        data        = { targetSid = serverId },
+    })
+    table.insert(items, {
+        id          = "idcard_police_license",
+        label       = "Contrôler le permis",
+        icon        = "Car",
+        data        = { targetSid = serverId },
+    })
+    table.insert(items, {
+        id          = "idcard_police_badge",
+        label       = "Voir badge police",
+        icon        = "ShieldCheck",
+        data        = { targetSid = serverId },
+    })
+end)
+
+log:info("Options police enregistrées (kt_context)")
 
 -- ─── Check permis au volant ───────────────────────────────────────────────────
 -- FIX : debounce 60s pour éviter le spam au moindre saut de siège

@@ -7,7 +7,7 @@ Config.resources = {
     union     = "union",
     inventory = "kt_inventory",
     interact  = "kt_interact",
-    target    = "kt_target",
+    context   = "kt_context",   -- remplace kt_target — zones et menus joueur
 }
 
 -- ─── Items inventaire ─────────────────────────────────────────────────────────
@@ -45,7 +45,7 @@ Config.showRadius = 5.0
 
 -- ─── PNJ Mairie (donne la carte d'identité gratuite) ─────────────────────────
 Config.npc = {
-    model   = "s_m_m_civmale_01",
+    model   = "s_m_m_ciasec_01",
     heading = 180.0,
     coords  = vector3(-268.5, -957.8, 31.2),
     interact = {
@@ -57,7 +57,7 @@ Config.npc = {
 
 -- ─── PNJ Auto-école (donne les permis gratuitement) ──────────────────────────
 Config.npcDriving = {
-    model   = "s_m_m_dockwork_01",
+    model   = "s_m_m_fiboffice_02",
     heading = 90.0,
     coords  = vector3(-800.0, -200.0, 37.0),
     interact = {
@@ -80,14 +80,14 @@ Config.npcDriving = {
 --    "WORLD_HUMAN_GUARD_STAND"     → garde debout
 --
 Config.PNJ = {
-    model      = "s_m_m_gentransport",        -- modèle du ped (GTA V ped name)
-    coords     = vector3(-268.0, -975.0, 31.2), -- écarté de Config.npc (~17 m)
+    model      = "s_f_y_airhostess_01",        -- modèle du ped (GTA V ped name)
+    coords     = vector3(-268.0, -975.0, 31.2), -- À adapter selon votre map
     heading    = 340.0,                        -- direction (0-360)
     frozen     = true,                         -- ne se déplace pas
     invincible = true,                         -- immortel
     scenario   = "WORLD_HUMAN_CLIPBOARD",      -- animation idle
 
-    -- Label et icône affichés sur l'interaction (kt_target)
+    -- Label et icône affichés sur l'interaction (kt_context)
     label    = "📋 Officier d'état civil",
     icon     = "fas fa-file-contract",
     distance = 2.5,

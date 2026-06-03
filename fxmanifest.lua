@@ -10,6 +10,7 @@ dependencies {
     'oxmysql',
     'kt_lib',
     'union',
+    'kt_context',   -- requis pour les zones d'interaction et les menus joueur police
 }
 
 ui_page 'web/dist/index.html'
@@ -23,19 +24,19 @@ files {
 shared_scripts {
     '@kt_lib/init.lua',
     'shared/config/config.lua',
+    --'shared/logger.lua',        -- Logger global (client + server)
 }
 
 client_scripts {
-    'client/logger_client.lua',
+    'client/logger_client.lua', -- doit rester EN PREMIER si logger pas en shared
     'client/main.lua',
-    'client/shop_ped.lua',      -- PNJ boutique documents
+    'client/shop_ped.lua',
     'client/photo_capture.lua',
 }
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
-    'shared/config/config.lua',      -- si tu as une config partagée
-    'server/logger.lua',      -- ← EN PREMIER, avant tout le reste
+    'server/logger.lua',
     'server/main.lua',
     'server/shop.lua',
     'server/photo_save.lua',
