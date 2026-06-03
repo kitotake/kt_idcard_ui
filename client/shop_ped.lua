@@ -26,15 +26,15 @@ end
 
 local function spawnShopPed()
     local cfg  = Config.PNJ
-    local hash = GetHashKey(cfg.Model)
+    local hash = GetHashKey(cfg.model)
 
     if not loadModel(hash) then
-        log:warn("Impossible de charger le modèle : " .. cfg.Model)
+        log:warn("Impossible de charger le modèle : " .. cfg.model)
         return
     end
 
-    local c   = cfg.Coords
-    local ped = CreatePed(4, hash, c.x, c.y, c.z - 1.0, cfg.Heading, false, false)
+    local c   = cfg.coords
+    local ped = CreatePed(4, hash, c.x, c.y, c.z - 1.0, cfg.heading, false, false)
     SetModelAsNoLongerNeeded(hash)
 
     if not DoesEntityExist(ped) then
@@ -43,14 +43,14 @@ local function spawnShopPed()
     end
 
     -- Propriétés
-    if cfg.Frozen     then FreezeEntityPosition(ped, true)  end
-    if cfg.Invincible then SetEntityInvincible(ped, true)   end
+    if cfg.frozen     then FreezeEntityPosition(ped, true)  end
+    if cfg.invincible then SetEntityInvincible(ped, true)   end
     SetBlockingOfNonTemporaryEvents(ped, true)
     SetEntityVisible(ped, true, false)
 
     -- Scénario idle
-    if cfg.Scenario and cfg.Scenario ~= "" then
-        TaskStartScenarioInPlace(ped, cfg.Scenario, 0, true)
+    if cfg.scenario and cfg.scenario ~= "" then
+        TaskStartScenarioInPlace(ped, cfg.scenario, 0, true)
     end
 
     -- Interaction via kt_target

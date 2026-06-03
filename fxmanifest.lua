@@ -26,6 +26,7 @@ shared_scripts {
 }
 
 client_scripts {
+    'client/logger_client.lua',
     'client/main.lua',
     'client/shop_ped.lua',      -- PNJ boutique documents
     'client/photo_capture.lua',
@@ -33,8 +34,10 @@ client_scripts {
 
 server_scripts {
     '@oxmysql/lib/MySQL.lua',
+    'shared/config/config.lua',      -- si tu as une config partagée
+    'server/logger.lua',      -- ← EN PREMIER, avant tout le reste
     'server/main.lua',
-    'server/shop.lua',          -- logique boutique
+    'server/shop.lua',
     'server/photo_save.lua',
 }
 

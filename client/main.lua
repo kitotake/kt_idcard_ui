@@ -136,7 +136,7 @@ AddEventHandler("idcard:driving:interact", function() TriggerServerEvent("idcard
 -- ─── Police target (kt_target) ───────────────────────────────────────────────
 
 CreateThread(function()
-    while GetResourceState("kt_target") ~= "started" do Wait(1000) end
+    while GetResourceState(Config.resources.target) ~= "started" do Wait(1000) end
 
     local function isPolice()
         local char = LocalPlayer.state.character
@@ -156,7 +156,7 @@ CreateThread(function()
         return nil
     end
 
-    exports["kt_target"]:AddTargetModel({ "mp_m_freemode_01", "mp_f_freemode_01" }, {
+    exports[Config.resources.target]:AddTargetModel({ "mp_m_freemode_01", "mp_f_freemode_01" }, {
         options = {
             {
                 label       = "Contrôler l'identité",

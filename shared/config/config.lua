@@ -80,12 +80,12 @@ Config.npcDriving = {
 --    "WORLD_HUMAN_GUARD_STAND"     → garde debout
 --
 Config.PNJ = {
-    Model      = "s_m_m_gentransport",        -- modèle du ped (GTA V ped name)
-    Coords     = vector3(-268.0, -960.0, 31.2), -- À adapter selon votre map
-    Heading    = 340.0,                        -- direction (0-360)
-    Frozen     = true,                         -- ne se déplace pas
-    Invincible = true,                         -- immortel
-    Scenario   = "WORLD_HUMAN_CLIPBOARD",      -- animation idle
+    model      = "s_m_m_gentransport",        -- modèle du ped (GTA V ped name)
+    coords     = vector3(-268.0, -975.0, 31.2), -- écarté de Config.npc (~17 m)
+    heading    = 340.0,                        -- direction (0-360)
+    frozen     = true,                         -- ne se déplace pas
+    invincible = true,                         -- immortel
+    scenario   = "WORLD_HUMAN_CLIPBOARD",      -- animation idle
 
     -- Label et icône affichés sur l'interaction (kt_target)
     label    = "📋 Officier d'état civil",
@@ -154,5 +154,3 @@ Config.PNJ = {
 }
 
 Config.debug = true
-
-return Config
