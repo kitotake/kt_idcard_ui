@@ -15,6 +15,17 @@ local function notify(msg, nType)
     lib.notify({ description = tostring(msg), type = nType or "info", duration = 4000 })
 end
 
+local function loadModel(hash)
+    if HasModelLoaded(hash) then return true end
+    RequestModel(hash)
+    local t = GetGameTimer()
+    while not HasModelLoaded(hash) do
+        Wait(50)
+        if GetGameTimer() - t > 8000 then return false end
+    end
+    return true
+end
+
 -- ─── Blips ───────────────────────────────────────────────────────────────────
 
 local function addBlip(coords, sprite, color, label)
@@ -32,21 +43,51 @@ end
 -- ─── Spawn / remove NPC ──────────────────────────────────────────────────────
 
 local function spawnPed(cfg, event)
-    local ped = NPC.SpawnPed(cfg, "IDCARD")
-
-    if ped then
-        local targetReady = NPC.TryAddTargetEntity(ped, cfg.interact or cfg, event)
-        if not targetReady then
-            print("^3[IDCARD]^7 kt_interact indisponible ou incompatible, fallback touche E actif")
-        end
+    local hash = GetHashKey(cfg.model)
+    if not loadModel(hash) then return nil end
+    local c   = cfg.coords
+    local ped = CreatePed(4, hash, c.x, c.y, c.z, cfg.heading, false, false)
+    SetModelAsNoLongerNeeded(hash)
+    if not DoesEntityExist(ped) then return nil end
+    SetEntityInvincible(ped, true)
+    SetBlockingOfNonTemporaryEvents(ped, true)
+    FreezeEntityPosition(ped, true)
+    SetEntityVisible(ped, true, false)
+    -- Interaction via kt_context (zone sphérique)
+    if GetResourceState(Config.resources.context) == "started" then
+        pcall(function()
+            exports[Config.resources.context]:RegisterMenuZone({
+                id     = "idcard_zone_" .. tostring(ped),
+                coords = vector3(c.x, c.y, c.z),
+                radius = cfg.interact.distance or 2.5,
+                title  = cfg.interact.label,
+                hint   = cfg.interact.label .. " — ~INPUT_CONTEXT~",
+                marker = {
+                    type  = 2,
+                    color = { r = 52, g = 152, b = 219, a = 120 },
+                    size  = vector3((cfg.interact.distance or 2.5) * 2,
+                                   (cfg.interact.distance or 2.5) * 2, 0.3),
+                },
+                items = {{
+                    id    = event,
+                    label = cfg.interact.label,
+                    icon  = "IdCard",
+                }},
+            })
+        end)
     end
-
     return ped
 end
 
 local function removePed(ped)
-    NPC.RemoveTargetEntity(ped)
-    NPC.DeletePed(ped)
+    if not ped or not DoesEntityExist(ped) then return end
+    if GetResourceState(Config.resources.context) == "started" then
+        pcall(function()
+            exports[Config.resources.context]:RemoveMenuZone("idcard_zone_" .. tostring(ped))
+        end)
+    end
+    SetEntityAsMissionEntity(ped, false, true)
+    DeleteEntity(ped)
 end
 
 local function removeBlip(blip)
@@ -68,67 +109,38 @@ local function closeNUI()
     SendNUIMessage({ action = "hideCard" })
 end
 
-local function waitForCharacterReady(timeout)
-    local startedAt = GetGameTimer()
+-- ─── Spawn au login ──────────────────────────────────────────────────────────
 
-    while GetGameTimer() - startedAt < (timeout or 15000) do
-        if LocalPlayer and LocalPlayer.state and LocalPlayer.state.character then
-            return true
-        end
-        Wait(250)
-    end
-
-    return false
-end
-
--- ─── Spawn au login / restart ressource ──────────────────────────────────────
-
-local function ensureNpcSpawned(reason)
-    print(("^2[IDCARD]^7 Vérification spawn PNJ (%s)"):format(reason or "manuel"))
-
+local function spawnAllPeds()
     if not (npcId and DoesEntityExist(npcId)) then
-        print("^3[IDCARD]^7 Spawn NPC mairie")
         npcId = spawnPed(Config.npc, "idcard:npc:interact")
-
         if npcId then
-            if not (blipMairie and DoesBlipExist(blipMairie)) then
-                blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
-            end
-        else
-            print("^1[IDCARD]^7 Échec création NPC mairie")
+            blipMairie = addBlip(Config.npc.coords, 408, 3, "Carte d'identité")
         end
     end
-
     if not (npcDrivingId and DoesEntityExist(npcDrivingId)) then
-        print("^3[IDCARD]^7 Spawn NPC auto-école")
         npcDrivingId = spawnPed(Config.npcDriving, "idcard:driving:interact")
-
         if npcDrivingId then
-            if not (blipDriving and DoesBlipExist(blipDriving)) then
-                blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
-            end
-        else
-            print("^1[IDCARD]^7 Échec création NPC auto-école")
+            blipDriving = addBlip(Config.npcDriving.coords, 225, 2, "Auto-école")
         end
     end
 end
 
+-- ⭐⭐⭐⭐⭐ FIX : union:player:spawned peut ne pas se déclencher si la resource
+-- est lancée après le login. On vérifie le statebag au démarrage et on écoute
+-- l'event pour les connexions normales.
 RegisterNetEvent("union:player:spawned", function()
     Wait(500)
-    ensureNpcSpawned("union:player:spawned")
+    spawnAllPeds()
 end)
 
-AddEventHandler("onClientResourceStart", function(resourceName)
-    if resourceName ~= GetCurrentResourceName() then return end
-
-    CreateThread(function()
-        Wait(1500)
-        if waitForCharacterReady(15000) then
-            ensureNpcSpawned("resource start")
-        else
-            print("^3[IDCARD]^7 Aucun personnage chargé, spawn PNJ reporté à union:player:spawned")
-        end
-    end)
+-- Fallback : resource démarrée après le login (restart en jeu)
+CreateThread(function()
+    Wait(1000)  -- laisser le temps à la config et aux autres scripts de charger
+    if LocalPlayer.state.character then
+        log:info("Spawn fallback — personnage déjà actif au démarrage")
+        spawnAllPeds()
+    end
 end)
 
 AddEventHandler("union:character:unloaded", function()
@@ -142,12 +154,19 @@ AddEventHandler("union:character:unloaded", function()
 end)
 
 -- ─── NPC interactions ────────────────────────────────────────────────────────
+-- Les zones kt_context déclenchent l'action avec l'id = event name
 
 AddEventHandler("idcard:npc:interact",     function() TriggerServerEvent("idcard:npc:interact") end)
 AddEventHandler("idcard:driving:interact", function() TriggerServerEvent("idcard:driving:interact") end)
 
-NPC.StartFallbackInteraction("idcard_mairie", function() return npcId end, Config.npc.interact, "idcard:npc:interact")
-NPC.StartFallbackInteraction("idcard_driving", function() return npcDrivingId end, Config.npcDriving.interact, "idcard:driving:interact")
+-- Relais kt_context:action → events locaux NPC
+AddEventHandler("kt_context:action", function(id)
+    if id == "idcard:npc:interact" then
+        TriggerEvent("idcard:npc:interact")
+    elseif id == "idcard:driving:interact" then
+        TriggerEvent("idcard:driving:interact")
+    end
+end)
 
 -- ─── Police target (kt_context) ──────────────────────────────────────────────
 -- Injecte les options de contrôle dans le menu joueur via kt_context:action
@@ -161,15 +180,18 @@ local function isPolice()
     return false
 end
 
--- Écoute les actions du menu kt_context pour les contrôles policiers
+-- Les actions police sont gérées dans le handler kt_context:action ci-dessus
+-- (fusionné avec le relais NPC pour éviter les doubles AddEventHandler)
 AddEventHandler("kt_context:action", function(id, data)
-    if not isPolice() then return end
-    if id == "idcard_police_identity" and data and data.targetSid then
-        TriggerServerEvent("idcard:police:checkIdentity", data.targetSid)
-    elseif id == "idcard_police_license" and data and data.targetSid then
-        TriggerServerEvent("idcard:police:checkLicense", data.targetSid)
-    elseif id == "idcard_police_badge" and data and data.targetSid then
-        TriggerServerEvent("idcard:police:checkBadge", data.targetSid)
+    -- ── Contrôles policiers ──
+    if isPolice() then
+        if id == "idcard_police_identity" and data and data.targetSid then
+            TriggerServerEvent("idcard:police:checkIdentity", data.targetSid)
+        elseif id == "idcard_police_license" and data and data.targetSid then
+            TriggerServerEvent("idcard:police:checkLicense", data.targetSid)
+        elseif id == "idcard_police_badge" and data and data.targetSid then
+            TriggerServerEvent("idcard:police:checkBadge", data.targetSid)
+        end
     end
 end)
 
@@ -285,4 +307,4 @@ RegisterNetEvent("bankcard:notify", function(msg, nType)
     notify(msg, nType)
 end)
 
-log:info("NUI unifiée chargée — 9 cartes identité + 3 cartes bancaires")
+log:info("NUI unifiée chargée — 9 cartes identité + 3 cartes bancaires")    
