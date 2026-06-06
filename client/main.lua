@@ -1,6 +1,9 @@
 -- client/main.lua
 -- kt_idcard_ui v3 + kt_bankcard_ui — CLIENT FUSIONNÉ
--- Fixes : NUI focus caméra, blips map, debounce véhicule
+-- Corrections :
+--   [FIX-1] Double AddEventHandler("kt_context:action") fusionné en UN SEUL handler
+--   [FIX-2] SetNuiFocus(true, true) pour bloquer la caméra pendant l'affichage NUI
+--   [FIX-3] Debounce véhicule 60s entre deux checks
 
 local log     = Logger:child("UNIFIED:CLIENT")
 local nuiOpen = false
@@ -53,7 +56,6 @@ local function spawnPed(cfg, event)
     SetBlockingOfNonTemporaryEvents(ped, true)
     FreezeEntityPosition(ped, true)
     SetEntityVisible(ped, true, false)
-    -- Interaction via kt_context (zone sphérique)
     if GetResourceState(Config.resources.context) == "started" then
         pcall(function()
             exports[Config.resources.context]:RegisterMenuZone({
@@ -65,8 +67,11 @@ local function spawnPed(cfg, event)
                 marker = {
                     type  = 2,
                     color = { r = 52, g = 152, b = 219, a = 120 },
-                    size  = vector3((cfg.interact.distance or 2.5) * 2,
-                                   (cfg.interact.distance or 2.5) * 2, 0.3),
+                    size  = vector3(
+                        (cfg.interact.distance or 2.5) * 2,
+                        (cfg.interact.distance or 2.5) * 2,
+                        0.3
+                    ),
                 },
                 items = {{
                     id    = event,
@@ -94,12 +99,11 @@ local function removeBlip(blip)
     if blip and DoesBlipExist(blip) then RemoveBlip(blip) end
 end
 
--- ─── NUI open/close helpers ──────────────────────────────────────────────────
--- FIX : SetNuiFocus(true, true) pour bloquer aussi la caméra pendant la lecture
+-- ─── NUI open/close ──────────────────────────────────────────────────────────
 
 local function openNUI(payload)
     nuiOpen = true
-    SetNuiFocus(true, true)   -- FIX: 2ème arg = true bloque la caméra
+    SetNuiFocus(true, true)   -- [FIX-2] 2ème arg = true bloque la caméra
     SendNUIMessage(payload)
 end
 
@@ -126,17 +130,13 @@ local function spawnAllPeds()
     end
 end
 
--- ⭐⭐⭐⭐⭐ FIX : union:player:spawned peut ne pas se déclencher si la resource
--- est lancée après le login. On vérifie le statebag au démarrage et on écoute
--- l'event pour les connexions normales.
 RegisterNetEvent("union:player:spawned", function()
     Wait(500)
     spawnAllPeds()
 end)
 
--- Fallback : resource démarrée après le login (restart en jeu)
 CreateThread(function()
-    Wait(1000)  -- laisser le temps à la config et aux autres scripts de charger
+    Wait(1000)
     if LocalPlayer.state.character then
         log:info("Spawn fallback — personnage déjà actif au démarrage")
         spawnAllPeds()
@@ -153,23 +153,7 @@ AddEventHandler("union:character:unloaded", function()
     if nuiOpen then closeNUI() end
 end)
 
--- ─── NPC interactions ────────────────────────────────────────────────────────
--- Les zones kt_context déclenchent l'action avec l'id = event name
-
-AddEventHandler("idcard:npc:interact",     function() TriggerServerEvent("idcard:npc:interact") end)
-AddEventHandler("idcard:driving:interact", function() TriggerServerEvent("idcard:driving:interact") end)
-
--- Relais kt_context:action → events locaux NPC
-AddEventHandler("kt_context:action", function(id)
-    if id == "idcard:npc:interact" then
-        TriggerEvent("idcard:npc:interact")
-    elseif id == "idcard:driving:interact" then
-        TriggerEvent("idcard:driving:interact")
-    end
-end)
-
--- ─── Police target (kt_context) ──────────────────────────────────────────────
--- Injecte les options de contrôle dans le menu joueur via kt_context:action
+-- ─── Police ──────────────────────────────────────────────────────────────────
 
 local function isPolice()
     local char = LocalPlayer.state.character
@@ -180,10 +164,31 @@ local function isPolice()
     return false
 end
 
--- Les actions police sont gérées dans le handler kt_context:action ci-dessus
--- (fusionné avec le relais NPC pour éviter les doubles AddEventHandler)
+-- ─── Handler kt_context:action UNIQUE [FIX-1] ────────────────────────────────
+-- TOUTES les actions kt_context sont traitées ici en un seul handler.
+-- L'ancienne version avait deux AddEventHandler distincts pour le même event,
+-- ce qui causait des comportements imprévisibles selon l'ordre d'exécution.
+
 AddEventHandler("kt_context:action", function(id, data)
-    -- ── Contrôles policiers ──
+    -- Relais NPC mairie et auto-école
+    if id == "idcard:npc:interact" then
+        TriggerServerEvent("idcard:npc:interact")
+        return
+    end
+
+    if id == "idcard:driving:interact" then
+        TriggerServerEvent("idcard:driving:interact")
+        return
+    end
+
+    -- Relais boutique (défini ici plutôt que dans shop_ped.lua pour éviter
+    -- un re-enregistrement à chaque spawn du PNJ)
+    if id == "idcard_shop_open" then
+        TriggerServerEvent("idcard:shop:open")
+        return
+    end
+
+    -- Contrôles policiers
     if isPolice() then
         if id == "idcard_police_identity" and data and data.targetSid then
             TriggerServerEvent("idcard:police:checkIdentity", data.targetSid)
@@ -195,37 +200,37 @@ AddEventHandler("kt_context:action", function(id, data)
     end
 end)
 
--- Injecte les options police dans le menu joueur kt_context
+-- ─── Menu joueur police ───────────────────────────────────────────────────────
+
 AddEventHandler("kt_context:buildPlayerMenu", function(serverId, items)
     if not isPolice() then return end
     table.insert(items, { id = "_div_police", divider = true, label = "" })
     table.insert(items, {
-        id          = "idcard_police_identity",
-        label       = "Contrôler l'identité",
-        icon        = "IdCard",
-        data        = { targetSid = serverId },
+        id    = "idcard_police_identity",
+        label = "Contrôler l'identité",
+        icon  = "IdCard",
+        data  = { targetSid = serverId },
     })
     table.insert(items, {
-        id          = "idcard_police_license",
-        label       = "Contrôler le permis",
-        icon        = "Car",
-        data        = { targetSid = serverId },
+        id    = "idcard_police_license",
+        label = "Contrôler le permis",
+        icon  = "Car",
+        data  = { targetSid = serverId },
     })
     table.insert(items, {
-        id          = "idcard_police_badge",
-        label       = "Voir badge police",
-        icon        = "ShieldCheck",
-        data        = { targetSid = serverId },
+        id    = "idcard_police_badge",
+        label = "Voir badge police",
+        icon  = "ShieldCheck",
+        data  = { targetSid = serverId },
     })
 end)
 
 log:info("Options police enregistrées (kt_context)")
 
--- ─── Check permis au volant ───────────────────────────────────────────────────
--- FIX : debounce 60s pour éviter le spam au moindre saut de siège
+-- ─── Check permis au volant [FIX-3] ──────────────────────────────────────────
 
-local lastVehicle       = 0
-local lastLicenseCheck  = 0
+local lastVehicle      = 0
+local lastLicenseCheck = 0
 
 CreateThread(function()
     local inVehicle = false
@@ -238,7 +243,7 @@ CreateThread(function()
             if not inVehicle then
                 inVehicle = true
                 local now = GetGameTimer()
-                -- FIX: nouveau véhicule ET cooldown 60s entre deux checks
+                -- [FIX-3] Nouveau véhicule ET cooldown 60s
                 if veh ~= lastVehicle and (now - lastLicenseCheck) > 60000 then
                     lastVehicle      = veh
                     lastLicenseCheck = now
@@ -290,7 +295,7 @@ RegisterNUICallback("bankcard:close", function(_, cb)
     cb({ ok = true })
 end)
 
--- ─── Montrer sa carte aux proches (bouton NUI) ────────────────────────────────
+-- ─── Montrer sa carte aux proches ────────────────────────────────────────────
 
 RegisterNUICallback("idcard:showNearby", function(data, cb)
     TriggerServerEvent("idcard:showToNearby", data.cardType)
@@ -307,4 +312,4 @@ RegisterNetEvent("bankcard:notify", function(msg, nType)
     notify(msg, nType)
 end)
 
-log:info("NUI unifiée chargée — 9 cartes identité + 3 cartes bancaires")    
+log:info("NUI unifiée chargée — 9 cartes identité + 3 cartes bancaires")

@@ -1,5 +1,9 @@
 -- server/shop.lua
 -- Logique serveur de la boutique documents
+-- Corrections :
+--   [FIX-1] getCharacter local normalisé identiquement à server/main.lua
+--   [FIX-2] Bug pending dans idcard:shop:open : double décrémentation corrigée
+--   [FIX-3] Protection contre les achats concurrents (debounce simple par src)
 
 local log = Logger:child("SHOP:SERVER")
 
@@ -9,11 +13,17 @@ local function isConnected(src)
     return GetPlayerEndpoint(src) ~= nil
 end
 
+-- [FIX-1] Normalisation identique à server/main.lua
 local function getCharacter(src)
-    local ok, char = pcall(function()
+    if not src then return nil end
+    local ok, raw = pcall(function()
         return exports[Config.resources.union]:GetCharacterState(src)
     end)
-    if ok and char then return char end
+    if not ok or not raw or type(raw) ~= "table" then return nil end
+    if raw.data             and type(raw.data)             == "table" then return raw.data             end
+    if raw.character        and type(raw.character)        == "table" then return raw.character        end
+    if raw.currentCharacter and type(raw.currentCharacter) == "table" then return raw.currentCharacter end
+    if raw.firstname or raw.unique_id then return raw end
     return nil
 end
 
@@ -62,7 +72,6 @@ end
 -- ─── Débite le compte bancaire personnel ─────────────────────────────────────
 
 local function debitAccount(uniqueId, amount, cb)
-    -- Vérifie que le solde est suffisant avant de débiter
     exports.oxmysql:scalar(
         "SELECT balance FROM bank_accounts WHERE unique_id = ? AND type = 'personal' LIMIT 1",
         { uniqueId },
@@ -92,44 +101,6 @@ local function getIdent(uniqueId, cb)
     )
 end
 
--- ─── Construction du catalogue avec état "owned" pour ce joueur ──────────────
-
-local function buildCatalog(char, cb)
-    local shop    = Config.PNJ.shop
-    local total   = #shop
-    local catalog = {}
-    local done    = 0
-
-    for i, entry in ipairs(shop) do
-        local function markDone(owned)
-            catalog[i] = {
-                id    = entry.id,
-                label = entry.label,
-                desc  = entry.desc,
-                price = entry.price,
-                owned = owned,
-            }
-            done = done + 1
-            if done == total then cb(catalog) end
-        end
-
-        if not entry.unique then
-            -- Article non-unique → jamais "owned"
-            markDone(false)
-        elseif entry.licType then
-            -- Vérifier la licence en BDD
-            hasLicense(char.unique_id, entry.licType, markDone)
-        elseif entry.item then
-            -- Vérifier l'item dans l'inventaire
-            local owned = hasItem(-1, Config.items[entry.item] or entry.item)
-            -- hasItem avec src réel
-            markDone(owned)
-        else
-            markDone(false)
-        end
-    end
-end
-
 -- ─── EVENT : ouvrir la boutique ───────────────────────────────────────────────
 
 RegisterNetEvent("idcard:shop:open", function()
@@ -140,27 +111,23 @@ RegisterNetEvent("idcard:shop:open", function()
         return
     end
 
-    -- On reconstruit le catalogue en vérifiant ce que le joueur possède déjà
-    local shop   = Config.PNJ.shop
-    local total  = #shop
+    local shop    = Config.PNJ.shop
+    local total   = #shop
     local catalog = {}
-    local pending = 0
 
-    -- Pour les licences on fait des requêtes async, on collecte tout puis on envoie
-    local results = {}
-    for i = 1, total do results[i] = false end
+    -- [FIX-2] Comptage correct avec résolution synchrone/asynchrone mélangée
+    -- On utilise une seule variable pending initialisée à total
+    local pending = total
 
     local function checkDone()
         pending = pending - 1
         if pending == 0 then
-            -- Tout résolu : envoyer au client
             TriggerClientEvent("idcard:shop:openMenu", src, catalog)
         end
     end
 
     for i, entry in ipairs(shop) do
-        pending = pending + 1
-        local idx = i
+        local idx = i -- capture locale obligatoire en Lua
 
         if entry.licType then
             hasLicense(char.unique_id, entry.licType, function(owned)
@@ -173,9 +140,13 @@ RegisterNetEvent("idcard:shop:open", function()
                 }
                 checkDone()
             end)
-        elseif entry.item then
-            local itemName = Config.items[entry.item] or entry.item
-            local owned    = hasItem(src, itemName)
+        else
+            -- Résolution synchrone : item ou défaut
+            local owned = false
+            if entry.item then
+                local itemName = Config.items[entry.item] or entry.item
+                owned = hasItem(src, itemName)
+            end
             catalog[idx] = {
                 id    = entry.id,
                 label = entry.label,
@@ -183,21 +154,14 @@ RegisterNetEvent("idcard:shop:open", function()
                 price = entry.price,
                 owned = owned,
             }
-            pending = pending - 1 + 0  -- synchrone, on décrémente manuellement
-            pending = pending + 1
-            checkDone()
-        else
-            catalog[idx] = {
-                id    = entry.id,
-                label = entry.label,
-                desc  = entry.desc,
-                price = entry.price,
-                owned = false,
-            }
             checkDone()
         end
     end
 end)
+
+-- ─── Protection anti-doublon achats ──────────────────────────────────────────
+
+local buyingPlayers = {}
 
 -- ─── EVENT : acheter un article ───────────────────────────────────────────────
 
@@ -207,6 +171,18 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
     if not char then return end
     if not isConnected(src) then return end
 
+    -- [FIX-3] Anti-doublon : on ignore si un achat est déjà en cours pour ce joueur
+    if buyingPlayers[src] then
+        notify(src, "Un achat est déjà en cours.", "warning")
+        return
+    end
+    buyingPlayers[src] = true
+
+    -- Nettoyer automatiquement après 5s (sécurité)
+    SetTimeout(5000, function()
+        buyingPlayers[src] = nil
+    end)
+
     -- Trouver l'article dans le catalogue
     local entry = nil
     for _, e in ipairs(Config.PNJ.shop) do
@@ -215,15 +191,19 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
 
     if not entry then
         notify(src, "Article introuvable.", "error")
+        buyingPlayers[src] = nil
         return
     end
 
-    -- ── Vérification "unique" ──────────────────────────────────────────────
+    local function finishPurchase(success, msg, msgType)
+        buyingPlayers[src] = nil
+        TriggerClientEvent("idcard:shop:result", src, success, msg, msgType)
+    end
+
     local function proceedWithPurchase()
-        -- Débiter le compte
         debitAccount(char.unique_id, entry.price, function(success, errMsg)
             if not success then
-                TriggerClientEvent("idcard:shop:result", src, false,
+                finishPurchase(false,
                     errMsg == "solde insuffisant"
                         and ("Solde insuffisant. Prix : $%d"):format(entry.price)
                         or  "Erreur bancaire, réessayez.",
@@ -231,13 +211,13 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
                 return
             end
 
-            -- ── Donner l'item si défini ────────────────────────────────────
+            -- Donner l'item si défini
             if entry.item then
                 local itemName = Config.items[entry.item] or entry.item
                 addItem(src, itemName)
             end
 
-            -- ── Enregistrer la licence si définie ─────────────────────────
+            -- Enregistrer la licence si définie
             if entry.licType then
                 getIdent(char.unique_id, function(ident)
                     if not ident then return end
@@ -249,11 +229,12 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
                 end)
             end
 
-            log:info(("Achat : src=%d uid=%s article=%s prix=%d"):format(src, char.unique_id, itemId, entry.price))
+            log:info(("Achat : src=%d uid=%s article=%s prix=%d"):format(
+                src, char.unique_id, itemId, entry.price))
 
-            TriggerClientEvent("idcard:shop:result", src, true,
-                ("✅ %s acheté pour $%d"):format(entry.label:gsub("[^\32-\126\192-\255]", ""), entry.price),
-                "success")
+            -- Nettoyage du label (retire les emojis pour éviter les problèmes d'encodage)
+            local label = entry.label:gsub("[^\32-\126\192-\255]", "")
+            finishPurchase(true, ("✅ %s acheté pour $%d"):format(label, entry.price), "success")
         end)
     end
 
@@ -262,8 +243,7 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
         if entry.licType then
             hasLicense(char.unique_id, entry.licType, function(owned)
                 if owned then
-                    TriggerClientEvent("idcard:shop:result", src, false,
-                        "Vous possédez déjà ce permis.", "warning")
+                    finishPurchase(false, "Vous possédez déjà ce permis.", "warning")
                     return
                 end
                 proceedWithPurchase()
@@ -271,8 +251,7 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
         elseif entry.item then
             local itemName = Config.items[entry.item] or entry.item
             if hasItem(src, itemName) then
-                TriggerClientEvent("idcard:shop:result", src, false,
-                    "Vous possédez déjà ce document.", "warning")
+                finishPurchase(false, "Vous possédez déjà ce document.", "warning")
                 return
             end
             proceedWithPurchase()
@@ -282,6 +261,11 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
     else
         proceedWithPurchase()
     end
+end)
+
+-- Nettoyage si le joueur se déconnecte en plein achat
+AddEventHandler("playerDropped", function()
+    buyingPlayers[source] = nil
 end)
 
 log:info("Boutique documents chargée")

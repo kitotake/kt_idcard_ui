@@ -1,9 +1,18 @@
 -- client/shop_ped.lua
 -- PNJ Boutique documents — spawn, interaction, menu NUI
+-- Corrections :
+--   [FIX-1] AddEventHandler("kt_context:action") RETIRÉ de cette fonction.
+--           L'action "idcard_shop_open" est maintenant gérée dans client/main.lua
+--           (handler unique). L'ancienne version réenregistrait un nouveau handler
+--           à chaque appel de spawnShopPed(), multipliant les callbacks.
+--   [FIX-2] Zone kt_context enregistrée une seule fois (guard idcard_shop_zone_registered)
 
 local log       = Logger:child("SHOP:CLIENT")
 local shopPedId = nil
 local shopBlip  = nil
+
+-- Guard pour éviter la double-registration de zone si spawnShopPed() est rappelé
+local shopZoneRegistered = false
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
 
@@ -42,43 +51,46 @@ local function spawnShopPed()
         return
     end
 
-    -- Propriétés
     if cfg.frozen     then FreezeEntityPosition(ped, true)  end
     if cfg.invincible then SetEntityInvincible(ped, true)   end
     SetBlockingOfNonTemporaryEvents(ped, true)
     SetEntityVisible(ped, true, false)
 
-    -- Scénario idle
     if cfg.scenario and cfg.scenario ~= "" then
         TaskStartScenarioInPlace(ped, cfg.scenario, 0, true)
     end
 
-    -- Interaction via kt_context (zone sphérique)
-    if GetResourceState(Config.resources.context) == "started" then
-        exports[Config.resources.context]:RegisterMenuZone({
-            id     = "idcard_shop_zone",
-            coords = vector3(c.x, c.y, c.z),
-            radius = cfg.distance or 2.5,
-            title  = cfg.label,
-            hint   = cfg.label .. " — ~INPUT_CONTEXT~",
-            marker = {
-                type  = 2,
-                color = { r = 255, g = 193, b = 7, a = 120 },
-                size  = vector3((cfg.distance or 2.5) * 2, (cfg.distance or 2.5) * 2, 0.3),
-            },
-            items = {{
-                id    = "idcard_shop_open",
-                label = cfg.label,
-                icon  = "FileContract",
-            }},
-        })
-        AddEventHandler("kt_context:action", function(id)
-            if id == "idcard_shop_open" then
-                TriggerServerEvent("idcard:shop:open")
-            end
+    -- [FIX-1] La zone est enregistrée normalement.
+    -- L'action "idcard_shop_open" déclenchée par kt_context est interceptée
+    -- dans le handler unique de client/main.lua (AddEventHandler "kt_context:action").
+    -- On N'ajoute PAS de nouveau handler ici.
+    if GetResourceState(Config.resources.context) == "started" and not shopZoneRegistered then
+        pcall(function()
+            exports[Config.resources.context]:RegisterMenuZone({
+                id     = "idcard_shop_zone",
+                coords = vector3(c.x, c.y, c.z),
+                radius = cfg.distance or 2.5,
+                title  = cfg.label,
+                hint   = cfg.label .. " — ~INPUT_CONTEXT~",
+                marker = {
+                    type  = 2,
+                    color = { r = 255, g = 193, b = 7, a = 120 },
+                    size  = vector3(
+                        (cfg.distance or 2.5) * 2,
+                        (cfg.distance or 2.5) * 2,
+                        0.3
+                    ),
+                },
+                items = {{
+                    id    = "idcard_shop_open",
+                    label = cfg.label,
+                    icon  = "FileContract",
+                }},
+            })
         end)
+        shopZoneRegistered = true
         log:info("Zone kt_context boutique enregistrée")
-    else
+    elseif not GetResourceState(Config.resources.context) == "started" then
         log:warn("kt_context non disponible — interaction boutique désactivée")
     end
 
@@ -86,7 +98,7 @@ local function spawnShopPed()
     log:info("PNJ boutique spawné")
 
     -- Blip minimap
-    if cfg.blip and cfg.blip.enabled then
+    if cfg.blip and cfg.blip.enabled and not shopBlip then
         shopBlip = AddBlipForCoord(c.x, c.y, c.z)
         SetBlipSprite(shopBlip, cfg.blip.sprite)
         SetBlipColour(shopBlip, cfg.blip.color)
@@ -100,10 +112,11 @@ end
 
 local function removeShopPed()
     if shopPedId and DoesEntityExist(shopPedId) then
-        if GetResourceState(Config.resources.context) == "started" then
+        if GetResourceState(Config.resources.context) == "started" and shopZoneRegistered then
             pcall(function()
                 exports[Config.resources.context]:RemoveMenuZone("idcard_shop_zone")
             end)
+            shopZoneRegistered = false
         end
         SetEntityAsMissionEntity(shopPedId, false, true)
         DeleteEntity(shopPedId)
@@ -124,7 +137,6 @@ RegisterNetEvent("union:player:spawned", function()
     end
 end)
 
--- ⭐⭐⭐⭐⭐ FIX : fallback si resource démarrée après le login
 CreateThread(function()
     Wait(1200)
     if LocalPlayer.state.character and not (shopPedId and DoesEntityExist(shopPedId)) then
@@ -140,7 +152,6 @@ end)
 -- ─── Réception du catalogue depuis le serveur → ouvre la NUI boutique ────────
 
 RegisterNetEvent("idcard:shop:openMenu", function(catalogData)
-    -- catalogData = { items = { { id, label, desc, price, owned } ... } }
     SetNuiFocus(true, true)
     SendNUIMessage({
         action = "openShop",
@@ -150,14 +161,11 @@ end)
 
 -- ─── Callbacks NUI ────────────────────────────────────────────────────────────
 
--- Joueur clique "Acheter" sur un article
 RegisterNUICallback("idcard:shop:buy", function(data, cb)
-    -- data.id = identifiant de l'article (ex: "license_B")
     TriggerServerEvent("idcard:shop:buy", data.id)
     cb({ ok = true })
 end)
 
--- Joueur ferme la boutique
 RegisterNUICallback("idcard:shop:close", function(_, cb)
     SetNuiFocus(false, false)
     SendNUIMessage({ action = "closeShop" })
@@ -169,7 +177,6 @@ end)
 RegisterNetEvent("idcard:shop:result", function(success, message, nType)
     notify(message, nType)
     if success then
-        -- Rafraîchir le menu pour mettre à jour les "déjà acheté"
         TriggerServerEvent("idcard:shop:open")
     end
 end)
