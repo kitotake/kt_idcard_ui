@@ -1,9 +1,24 @@
-import type { BankCardData } from '../types'
+// web/src/components/BankCardComponent.tsx
+// Correction : animation via Framer Motion (cohérent avec les cartes identité)
+// au lieu de @keyframes cardIn inline qui dépend du SCSS chargé.
 
-// ─── Tailles FiveM : 440×265 au lieu de 520×310 ──────────────────────────────
+import { motion } from 'framer-motion'
+import type { BankCardData } from '../types'
 
 const CARD_W = 440
 const CARD_H = 265
+
+const cardVariants = {
+  hidden:  { opacity: 0, y: 24, scale: 0.93, rotateY: -10 },
+  visible: {
+    opacity: 1, y: 0, scale: 1, rotateY: 0,
+    transition: { type: 'spring' as const, stiffness: 280, damping: 24 },
+  },
+  exit: {
+    opacity: 0, y: -16, scale: 0.96,
+    transition: { duration: 0.2, ease: 'easeIn' as const },
+  },
+}
 
 function VisaLogo({ color }: { color: string }) {
   return (
@@ -56,7 +71,7 @@ function NFCIcon({ color }: { color: string }) {
   return (
     <svg width="18" height="18" viewBox="0 0 22 22" fill="none" opacity="0.45">
       <path d="M16 4.5a9 9 0 010 13" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
-      <path d="M13 7.5a5 5 0 010 7" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
+      <path d="M13 7.5a5 5 0 010 7"  stroke={color} strokeWidth="1.8" strokeLinecap="round" />
       <path d="M10 10a2 2 0 010 2.5" stroke={color} strokeWidth="1.8" strokeLinecap="round" />
     </svg>
   )
@@ -90,12 +105,10 @@ function CardBody({ data, textColor, subColor, showAmex }: CardBodyProps) {
       display: 'flex', flexDirection: 'column',
       justifyContent: 'space-between',
     }}>
-      {/* Row 1 — Bank name + solde */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ ...raj, fontSize: 17, fontWeight: 700, color: textColor, letterSpacing: 1 }}>
           {data.bankName}
         </div>
-        {/* NEW : affichage du solde */}
         {data.balance != null && (
           <div style={{ textAlign: 'right' }}>
             <div style={{ ...mono, fontSize: 7, letterSpacing: 2, color: subColor }}>SOLDE</div>
@@ -104,18 +117,15 @@ function CardBody({ data, textColor, subColor, showAmex }: CardBodyProps) {
         )}
       </div>
 
-      {/* Row 2 — Chip + NFC */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <ChipSVG />
         <NFCIcon color={textColor} />
       </div>
 
-      {/* Row 3 — Card number */}
       <div style={{ ...mono, fontSize: 17, letterSpacing: 3, color: textColor }}>
         {fmtNumber(data.cardNumber)}
       </div>
 
-      {/* Row 4 — Holder / Expiry / CVV / Network */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
           <div style={{ ...mono, fontSize: 7, letterSpacing: 2, color: subColor, marginBottom: 2 }}>CARD HOLDER</div>
@@ -133,7 +143,10 @@ function CardBody({ data, textColor, subColor, showAmex }: CardBodyProps) {
           <div style={{ display: 'flex', alignItems: 'center' }}>
             {data.cardNetwork === 'Visa'       && <VisaLogo color={textColor} />}
             {data.cardNetwork === 'Mastercard' && <MastercardLogo />}
-            {data.cardNetwork === 'Amex'       && (showAmex ? <AmexLogo color={textColor} /> : <div style={{ fontFamily: 'Rajdhani', fontSize: 10, fontWeight: 700, color: textColor, letterSpacing: 1 }}>AMEX</div>)}
+            {data.cardNetwork === 'Amex'       && (showAmex
+              ? <AmexLogo color={textColor} />
+              : <div style={{ fontFamily: 'Rajdhani', fontSize: 10, fontWeight: 700, color: textColor, letterSpacing: 1 }}>AMEX</div>
+            )}
           </div>
         </div>
       </div>
@@ -171,14 +184,17 @@ function Shimmer({ gradient, delay = '0s' }: { gradient: string; delay?: string 
 
 function ClassicBankCard({ data }: { data: BankCardData }) {
   return (
-    <div style={{
-      position: 'relative', width: CARD_W, height: CARD_H,
-      borderRadius: 15, overflow: 'hidden',
-      background: 'linear-gradient(135deg,#111827 0%,#0f172a 45%,#1a2540 100%)',
-      border: '1px solid rgba(100,140,220,0.22)',
-      boxShadow: '0 22px 55px rgba(0,0,0,0.88), 0 0 0 1px rgba(100,140,255,0.08)',
-      animation: 'cardIn 0.45s cubic-bezier(0.22,1,0.36,1) forwards',
-    }}>
+    <motion.div
+      variants={cardVariants}
+      initial="hidden" animate="visible" exit="exit"
+      style={{
+        position: 'relative', width: CARD_W, height: CARD_H,
+        borderRadius: 15, overflow: 'hidden',
+        background: 'linear-gradient(135deg,#111827 0%,#0f172a 45%,#1a2540 100%)',
+        border: '1px solid rgba(100,140,220,0.22)',
+        boxShadow: '0 22px 55px rgba(0,0,0,0.88), 0 0 0 1px rgba(100,140,255,0.08)',
+      }}
+    >
       <div style={{ position: 'absolute', top: -60, right: -40, width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle,rgba(59,130,246,0.1),transparent 68%)', pointerEvents: 'none' }} />
       {Array.from({ length: 9 }, (_, i) => (
         <div key={i} style={{ position: 'absolute', left: 0, right: 0, top: `${i * 12}%`, height: 1, background: 'rgba(255,255,255,0.02)', pointerEvents: 'none' }} />
@@ -187,7 +203,7 @@ function ClassicBankCard({ data }: { data: BankCardData }) {
       <Shimmer gradient="linear-gradient(90deg,transparent,rgba(255,255,255,0.025),transparent)" />
       <CardBody data={data} textColor="rgba(215,228,255,0.9)" subColor="rgba(148,163,200,0.6)" />
       {data.iban && <IBANBar iban={data.iban} borderColor="rgba(255,255,255,0.04)" textColor="rgba(120,140,190,0.35)" />}
-    </div>
+    </motion.div>
   )
 }
 
@@ -195,14 +211,17 @@ function ClassicBankCard({ data }: { data: BankCardData }) {
 
 function GoldBankCard({ data }: { data: BankCardData }) {
   return (
-    <div style={{
-      position: 'relative', width: CARD_W, height: CARD_H,
-      borderRadius: 15, overflow: 'hidden',
-      background: 'linear-gradient(135deg,#1a1000 0%,#2d1c00 40%,#1a1000 65%,#3a2800 100%)',
-      border: '1px solid rgba(212,175,55,0.45)',
-      boxShadow: '0 22px 55px rgba(0,0,0,0.92), 0 0 0 1px rgba(212,175,55,0.18), 0 0 28px rgba(212,175,55,0.1)',
-      animation: 'cardIn 0.45s cubic-bezier(0.22,1,0.36,1) forwards',
-    }}>
+    <motion.div
+      variants={cardVariants}
+      initial="hidden" animate="visible" exit="exit"
+      style={{
+        position: 'relative', width: CARD_W, height: CARD_H,
+        borderRadius: 15, overflow: 'hidden',
+        background: 'linear-gradient(135deg,#1a1000 0%,#2d1c00 40%,#1a1000 65%,#3a2800 100%)',
+        border: '1px solid rgba(212,175,55,0.45)',
+        boxShadow: '0 22px 55px rgba(0,0,0,0.92), 0 0 0 1px rgba(212,175,55,0.18), 0 0 28px rgba(212,175,55,0.1)',
+      }}
+    >
       <div style={{ position: 'absolute', top: -70, right: -50, width: 250, height: 250, borderRadius: '50%', background: 'radial-gradient(circle,rgba(212,175,55,0.16),transparent 62%)', pointerEvents: 'none' }} />
       {[-3,-2,-1,0,1,2,3,4].map(i => (
         <div key={i} style={{ position: 'absolute', top: -200, left: `${28 + i * 9}%`, width: 1, height: 550, background: 'linear-gradient(to bottom,transparent,rgba(212,175,55,0.07),transparent)', transform: 'rotate(22deg)', pointerEvents: 'none' }} />
@@ -212,38 +231,41 @@ function GoldBankCard({ data }: { data: BankCardData }) {
       <Shimmer gradient="linear-gradient(90deg,transparent,rgba(255,215,0,0.07),rgba(255,255,255,0.04),transparent)" delay="0.4s" />
       <CardBody data={data} textColor="rgba(255,230,140,0.92)" subColor="rgba(212,175,55,0.55)" />
       {data.iban && <IBANBar iban={data.iban} borderColor="rgba(212,175,55,0.08)" textColor="rgba(212,175,55,0.28)" />}
-    </div>
+    </motion.div>
   )
 }
 
 // ─── DIAMOND ──────────────────────────────────────────────────────────────────
 
 const SPARKLE_POS = [
-  { x:'11%', y:'16%', s:3, delay:'0s',   dur:'2.4s' },
-  { x:'87%', y:'11%', s:4, delay:'0.6s', dur:'3.1s' },
-  { x:'76%', y:'80%', s:3, delay:'1.2s', dur:'2.7s' },
-  { x:'20%', y:'74%', s:2, delay:'0.3s', dur:'3.4s' },
-  { x:'54%', y:'90%', s:3, delay:'1.8s', dur:'2.1s' },
-  { x:'93%', y:'44%', s:2, delay:'0.9s', dur:'2.8s' },
+  { x: '11%', y: '16%', s: 3, delay: '0s',   dur: '2.4s' },
+  { x: '87%', y: '11%', s: 4, delay: '0.6s', dur: '3.1s' },
+  { x: '76%', y: '80%', s: 3, delay: '1.2s', dur: '2.7s' },
+  { x: '20%', y: '74%', s: 2, delay: '0.3s', dur: '3.4s' },
+  { x: '54%', y: '90%', s: 3, delay: '1.8s', dur: '2.1s' },
+  { x: '93%', y: '44%', s: 2, delay: '0.9s', dur: '2.8s' },
 ]
 
 function DiamondBankCard({ data }: { data: BankCardData }) {
   return (
-    <div style={{
-      position: 'relative', width: CARD_W, height: CARD_H,
-      borderRadius: 15, overflow: 'hidden',
-      background: 'linear-gradient(135deg,#030710 0%,#08101e 25%,#060c18 55%,#0c1226 80%,#040810 100%)',
-      border: '1px solid rgba(140,210,255,0.28)',
-      boxShadow: '0 22px 55px rgba(0,0,0,0.96), 0 0 0 1px rgba(140,210,255,0.12), 0 0 40px rgba(80,180,255,0.1)',
-      animation: 'cardIn 0.45s cubic-bezier(0.22,1,0.36,1) forwards',
-    }}>
+    <motion.div
+      variants={cardVariants}
+      initial="hidden" animate="visible" exit="exit"
+      style={{
+        position: 'relative', width: CARD_W, height: CARD_H,
+        borderRadius: 15, overflow: 'hidden',
+        background: 'linear-gradient(135deg,#030710 0%,#08101e 25%,#060c18 55%,#0c1226 80%,#040810 100%)',
+        border: '1px solid rgba(140,210,255,0.28)',
+        boxShadow: '0 22px 55px rgba(0,0,0,0.96), 0 0 0 1px rgba(140,210,255,0.12), 0 0 40px rgba(80,180,255,0.1)',
+      }}
+    >
       <div style={{ position: 'absolute', top: -90, left: -60, width: 280, height: 280, borderRadius: '50%', background: 'radial-gradient(circle,rgba(80,160,255,0.09),transparent 62%)', pointerEvents: 'none' }} />
       <div style={{ position: 'absolute', bottom: -70, right: -50, width: 230, height: 230, borderRadius: '50%', background: 'radial-gradient(circle,rgba(180,80,255,0.07),transparent 62%)', pointerEvents: 'none' }} />
       <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', opacity: 0.038, pointerEvents: 'none' }}>
         <defs><pattern id="dmnd" x="0" y="0" width="32" height="32" patternUnits="userSpaceOnUse"><polygon points="16,2 30,16 16,30 2,16" fill="none" stroke="white" strokeWidth="0.7" /></pattern></defs>
         <rect width="100%" height="100%" fill="url(#dmnd)" />
       </svg>
-      {(['rgba(80,200,255,0.04)','rgba(200,80,255,0.03)','rgba(0,255,190,0.03)'] as const).map((c, i) => (
+      {(['rgba(80,200,255,0.04)', 'rgba(200,80,255,0.03)', 'rgba(0,255,190,0.03)'] as const).map((c, i) => (
         <div key={i} style={{ position: 'absolute', top: 0, bottom: 0, width: '32%', transform: 'skewX(-25deg)', background: `linear-gradient(90deg,transparent,${c},transparent)`, animation: `shimmer ${2.4 + i * 0.7}s ease-in-out ${i * 0.5}s infinite`, pointerEvents: 'none', zIndex: 1 }} />
       ))}
       {SPARKLE_POS.map((sp, i) => (
@@ -253,15 +275,17 @@ function DiamondBankCard({ data }: { data: BankCardData }) {
       <div style={{ position: 'absolute', top: 16, right: 22, zIndex: 5, padding: '2px 10px', borderRadius: 20, background: 'rgba(34,211,238,0.1)', border: '1px solid rgba(140,210,255,0.32)', fontFamily: "'Share Tech Mono',monospace", fontSize: 8, letterSpacing: 3, color: '#67e8f9', boxShadow: '0 0 10px rgba(34,211,238,0.2)' }}>◆ DIAMOND</div>
       <CardBody data={data} textColor="rgba(195,238,255,0.92)" subColor="rgba(100,200,240,0.5)" showAmex />
       {data.iban && <IBANBar iban={data.iban} borderColor="rgba(100,220,255,0.07)" textColor="rgba(80,190,230,0.28)" />}
-    </div>
+    </motion.div>
   )
 }
+
+// ─── EXPORT ───────────────────────────────────────────────────────────────────
 
 export function BankCardComponent({ data }: { data: BankCardData }) {
   switch (data.type) {
     case 'bank_card':         return <ClassicBankCard  data={data} />
     case 'bank_gold_card':    return <GoldBankCard     data={data} />
     case 'bank_diamond_card': return <DiamondBankCard  data={data} />
-    default: return null
+    default:                  return null
   }
 }

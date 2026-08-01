@@ -1,6 +1,13 @@
+// web/src/App.tsx
+// Corrections :
+//   [FIX-1] handleCardClose n'appelle que l'endpoint correspondant au type
+//           de carte affiché (identity/bank) — plus les deux systématiquement
+//   [FIX-2] handleNuiMessage : dépendances useCallback correctes
+//   [FIX-3] IdentityView.tsx supprimé — IDCard.tsx est l'unique composant carte
+
 import { useState, useCallback } from 'react'
 import { AnimatePresence } from 'framer-motion'
-import type { CardType, NuiPayload } from './types'
+import type { CardType, NuiPayload, ShopItem } from './types'
 import { useNuiMessage, useNuiFetch } from './hooks/useNui'
 import { IDCard } from './components/IDCard'
 import { ShopMenu } from './components/ShopMenu'
@@ -24,24 +31,12 @@ const CARD_TABS: { type: CardType; label: string; group: 'id' | 'bank' }[] = [
   { type: 'bank_diamond_card', label: '💎 Diamond',     group: 'bank' },
 ]
 
-// ─── Types boutique ───────────────────────────────────────────────────────────
-
-interface ShopItem {
-  id: string
-  label: string
-  desc: string
-  price: number
-  owned: boolean
-}
-
 // ─── Payloads NUI étendus ─────────────────────────────────────────────────────
 
 type ExtendedNuiPayload =
   | NuiPayload
   | { action: 'openShop';  items: ShopItem[] }
   | { action: 'closeShop' }
-
-const CLOSE_ENDPOINTS = ['idcard:close', 'bankcard:close'] as const
 
 export function App() {
   const fetchNui = useNuiFetch()
@@ -55,11 +50,15 @@ export function App() {
   const [shopVisible, setShopVisible] = useState(false)
   const [shopItems,   setShopItems]   = useState<ShopItem[]>([])
 
-  // ─── Fermer la carte ────────────────────────────────────────────────────────
+  // ─── Fermer la carte ─────────────────────────────────────────────────────────
+  // [FIX-1] On n'appelle que l'endpoint correspondant au type de carte affiché.
+  // Les deux handlers côté serveur sont vides, mais c'est sémantiquement correct
+  // et évite les requêtes NUI parasites.
   const handleCardClose = useCallback(() => {
     setCardVisible(false)
-    CLOSE_ENDPOINTS.forEach(ep => fetchNui(ep, {}))
-  }, [fetchNui])
+    const isBankCard = activeType.startsWith('bank_')
+    fetchNui(isBankCard ? 'bankcard:close' : 'idcard:close', {})
+  }, [fetchNui, activeType])
 
   // ─── Fermer la boutique ──────────────────────────────────────────────────────
   const handleShopClose = useCallback(() => {
@@ -77,9 +76,9 @@ export function App() {
     fetchNui('idcard:showNearby', { cardType: activeType })
   }, [fetchNui, activeType])
 
-  // ─── Messages NUI (cartes + boutique) ────────────────────────────────────────
+  // ─── Messages NUI ────────────────────────────────────────────────────────────
+  // [FIX-2] Le callback ne référence que des setters stables → dépendances vides OK.
   const handleNuiMessage = useCallback((payload: ExtendedNuiPayload) => {
-    // Boutique
     if (payload.action === 'openShop') {
       setShopItems((payload as { action: 'openShop'; items: ShopItem[] }).items)
       setShopVisible(true)
@@ -90,8 +89,6 @@ export function App() {
       setShopVisible(false)
       return
     }
-
-    // Cartes
     if (payload.action === 'showCard') {
       const p = payload as Extract<NuiPayload, { action: 'showCard' }>
       const type: CardType =
@@ -108,7 +105,7 @@ export function App() {
     if (payload.action === 'hideCard') {
       setCardVisible(false)
     }
-  }, [])
+  }, []) // setters useState sont stables → dépendances vides correctes
 
   useNuiMessage(handleNuiMessage as (p: NuiPayload) => void)
 
@@ -120,7 +117,7 @@ export function App() {
     }
   }, [shopVisible, cardVisible, handleShopClose, handleCardClose])
 
-  const canShowNearby = activeType === 'identity' || activeType === 'driver'
+  const canShowNearby = activeType === 'identity' || activeType === 'driver' || activeType === 'police'
   const isBankCard    = activeType.startsWith('bank_')
   const anyVisible    = cardVisible || shopVisible
 
@@ -160,7 +157,6 @@ export function App() {
               ))}
             </div>
           </div>
-          {/* Bouton dev pour tester la boutique */}
           <div className="tab-group">
             <span className="tab-group__label">DEV</span>
             <div className="tab-group__row">
@@ -168,10 +164,10 @@ export function App() {
                 className="tab-btn"
                 onClick={() => {
                   setShopItems([
-                    { id:'identity_card', label:'🪪 Carte d\'identité nationale', desc:'Document officiel.', price:150, owned:false },
-                    { id:'license_A',     label:'🏍️ Permis A — Moto',              desc:'Deux-roues motorisés.', price:800, owned:true },
-                    { id:'license_B',     label:'🚗 Permis B — Voiture',            desc:'Véhicules légers.',   price:1200, owned:false },
-                    { id:'license_C',     label:'🚛 Permis C — Poids lourd',        desc:'Véhicules lourds.',   price:2500, owned:false },
+                    { id:'identity_card', label:"🪪 Carte d'identité nationale", desc:'Document officiel.', price:150,  owned:false },
+                    { id:'license_A',     label:'🏍️ Permis A — Moto',              desc:'Deux-roues.',       price:800,  owned:true  },
+                    { id:'license_B',     label:'🚗 Permis B — Voiture',            desc:'Légers.',           price:1200, owned:false },
+                    { id:'license_C',     label:'🚛 Permis C — Poids lourd',        desc:'Lourds.',           price:2500, owned:false },
                   ])
                   setShopVisible(true)
                   setCardVisible(false)

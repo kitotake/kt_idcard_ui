@@ -1,3 +1,5 @@
+// web/src/styles/main.scss
+
 // ─── Reset ───────────────────────────────────────────────────────────────────
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -18,12 +20,12 @@ body {
 }
 
 @keyframes holoPulse {
-  0%   { transform: rotate(0deg); opacity: 0.7; }
+  0%   { transform: rotate(0deg);   opacity: 0.7; }
   100% { transform: rotate(360deg); opacity: 0.7; }
 }
 
 @keyframes pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
+  0%, 100% { opacity: 1;   transform: scale(1);    }
   50%       { opacity: 0.5; transform: scale(0.85); }
 }
 
@@ -37,10 +39,9 @@ body {
   to   { opacity: 1; }
 }
 
-@keyframes cardIn {
-  from { opacity: 0; transform: perspective(900px) rotateY(-12deg) translateY(24px) scale(0.94); }
-  to   { opacity: 1; transform: perspective(900px) rotateY(0deg) translateY(0) scale(1); }
-}
+// NOTE: @keyframes cardIn n'est plus utilisé — les cartes utilisent
+// Framer Motion (motion.div avec variants) pour une animation cohérente
+// et indépendante du chargement du SCSS.
 
 @keyframes glow-pulse {
   0%, 100% { box-shadow: 0 0 16px var(--card-glow, rgba(59,130,246,0.25)); }
@@ -55,13 +56,15 @@ body {
 // ─── Overlay ─────────────────────────────────────────────────────────────────
 
 .overlay {
-  display: none; position: fixed; inset: 0;
+  display: none;
+  position: fixed; inset: 0;
   background: rgba(0,0,0,0.72);
   backdrop-filter: blur(6px);
   pointer-events: all;
   align-items: center; justify-content: center;
   animation: overlayIn 0.25s ease forwards;
   z-index: 1000;
+
   &.visible { display: flex; }
 }
 
@@ -80,11 +83,14 @@ body {
 
 .tab-group {
   display: flex; flex-direction: column; gap: 4px;
+
   &__label {
     font-family: 'Share Tech Mono', monospace;
     font-size: 7px; letter-spacing: 2px;
-    color: rgba(255,255,255,0.3); text-transform: uppercase;
+    color: rgba(255,255,255,0.3);
+    text-transform: uppercase;
   }
+
   &__row { display: flex; flex-wrap: wrap; gap: 4px; }
 }
 
@@ -98,7 +104,10 @@ body {
   cursor: pointer; transition: all 0.15s;
   text-transform: uppercase;
 
-  &:hover { background: rgba(255,255,255,0.12); color: rgba(255,255,255,0.9); }
+  &:hover {
+    background: rgba(255,255,255,0.12);
+    color: rgba(255,255,255,0.9);
+  }
 
   &.active {
     background: rgba(37,99,235,0.35);
@@ -108,13 +117,13 @@ body {
   }
 
   &--bank {
-    &.active--card   { background: rgba(59,130,246,0.2);  border-color: rgba(100,160,255,0.5);  color: #7eb8ff; }
-    &.active--gold   { background: rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.45); color: #ffd875; }
-    &.active--diamond{ background: rgba(34,211,238,0.14); border-color: rgba(140,210,255,0.45); color: #a8e6ff; }
+    &.active--card    { background: rgba(59,130,246,0.2);  border-color: rgba(100,160,255,0.5);  color: #7eb8ff; }
+    &.active--gold    { background: rgba(212,175,55,0.18); border-color: rgba(212,175,55,0.45); color: #ffd875; }
+    &.active--diamond { background: rgba(34,211,238,0.14); border-color: rgba(140,210,255,0.45); color: #a8e6ff; }
   }
 }
 
-// ─── Action bar (boutons Montrer / Fermer) ───────────────────────────────────
+// ─── Action bar ──────────────────────────────────────────────────────────────
 
 .action-bar {
   display: flex; gap: 8px; align-items: center;
@@ -162,4 +171,19 @@ body {
   font-family: 'Share Tech Mono', monospace;
   font-size: 9px; letter-spacing: 1.5px; line-height: 1.8;
   word-break: break-all;
+}
+
+// ─── Scrollbar custom (boutique) ─────────────────────────────────────────────
+
+::-webkit-scrollbar {
+  width: 4px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(255,255,255,0.02);
+  border-radius: 2px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(99,102,241,0.4);
+  border-radius: 2px;
+  &:hover { background: rgba(99,102,241,0.7); }
 }

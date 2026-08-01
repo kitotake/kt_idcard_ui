@@ -2,8 +2,9 @@
 -- Logique serveur de la boutique documents
 -- Corrections :
 --   [FIX-1] getCharacter local normalisé identiquement à server/main.lua
---   [FIX-2] Bug pending dans idcard:shop:open : double décrémentation corrigée
---   [FIX-3] Protection contre les achats concurrents (debounce simple par src)
+--   [FIX-2] checkDone() : catalogue vide → menu envoyé immédiatement (plus de deadlock)
+--   [FIX-3] Protection anti-doublon achats (debounce par src)
+--   [FIX-4] SetTimeout → Citizen.SetTimeout (plus robuste cross-versions)
 
 local log = Logger:child("SHOP:SERVER")
 
@@ -13,7 +14,6 @@ local function isConnected(src)
     return GetPlayerEndpoint(src) ~= nil
 end
 
--- [FIX-1] Normalisation identique à server/main.lua
 local function getCharacter(src)
     if not src then return nil end
     local ok, raw = pcall(function()
@@ -111,12 +111,16 @@ RegisterNetEvent("idcard:shop:open", function()
         return
     end
 
-    local shop    = Config.PNJ.shop
+    local shop = Config.PNJ.shop
+
+    -- [FIX-2] Catalogue vide : on envoie immédiatement sans attendre checkDone
+    if not shop or #shop == 0 then
+        TriggerClientEvent("idcard:shop:openMenu", src, {})
+        return
+    end
+
     local total   = #shop
     local catalog = {}
-
-    -- [FIX-2] Comptage correct avec résolution synchrone/asynchrone mélangée
-    -- On utilise une seule variable pending initialisée à total
     local pending = total
 
     local function checkDone()
@@ -127,7 +131,7 @@ RegisterNetEvent("idcard:shop:open", function()
     end
 
     for i, entry in ipairs(shop) do
-        local idx = i -- capture locale obligatoire en Lua
+        local idx = i
 
         if entry.licType then
             hasLicense(char.unique_id, entry.licType, function(owned)
@@ -141,7 +145,6 @@ RegisterNetEvent("idcard:shop:open", function()
                 checkDone()
             end)
         else
-            -- Résolution synchrone : item ou défaut
             local owned = false
             if entry.item then
                 local itemName = Config.items[entry.item] or entry.item
@@ -171,19 +174,17 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
     if not char then return end
     if not isConnected(src) then return end
 
-    -- [FIX-3] Anti-doublon : on ignore si un achat est déjà en cours pour ce joueur
     if buyingPlayers[src] then
         notify(src, "Un achat est déjà en cours.", "warning")
         return
     end
     buyingPlayers[src] = true
 
-    -- Nettoyer automatiquement après 5s (sécurité)
-    SetTimeout(5000, function()
+    -- [FIX-4] Citizen.SetTimeout au lieu de SetTimeout
+    Citizen.SetTimeout(5000, function()
         buyingPlayers[src] = nil
     end)
 
-    -- Trouver l'article dans le catalogue
     local entry = nil
     for _, e in ipairs(Config.PNJ.shop) do
         if e.id == itemId then entry = e ; break end
@@ -211,13 +212,11 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
                 return
             end
 
-            -- Donner l'item si défini
             if entry.item then
                 local itemName = Config.items[entry.item] or entry.item
                 addItem(src, itemName)
             end
 
-            -- Enregistrer la licence si définie
             if entry.licType then
                 getIdent(char.unique_id, function(ident)
                     if not ident then return end
@@ -232,13 +231,11 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
             log:info(("Achat : src=%d uid=%s article=%s prix=%d"):format(
                 src, char.unique_id, itemId, entry.price))
 
-            -- Nettoyage du label (retire les emojis pour éviter les problèmes d'encodage)
             local label = entry.label:gsub("[^\32-\126\192-\255]", "")
             finishPurchase(true, ("✅ %s acheté pour $%d"):format(label, entry.price), "success")
         end)
     end
 
-    -- Vérification "unique" selon le type
     if entry.unique then
         if entry.licType then
             hasLicense(char.unique_id, entry.licType, function(owned)
@@ -263,7 +260,6 @@ RegisterNetEvent("idcard:shop:buy", function(itemId)
     end
 end)
 
--- Nettoyage si le joueur se déconnecte en plein achat
 AddEventHandler("playerDropped", function()
     buyingPlayers[source] = nil
 end)

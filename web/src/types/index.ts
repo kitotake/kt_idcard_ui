@@ -1,3 +1,5 @@
+// web/src/types/index.ts
+
 export type CardType =
   | 'identity' | 'driver' | 'weapon' | 'police'
   | 'mairie' | 'government' | 'ems' | 'company' | 'passport'
@@ -65,7 +67,56 @@ export type CardData =
   | MairieCardData | GovernmentCardData | EMSCardData | CompanyCardData
   | PassportCardData | BankCardData
 
-export interface ShowCardPayload { action: 'showCard'; cardType: CardType; data: CardData }
-export interface HideCardPayload { action: 'hideCard' }
+// ─── NUI Payloads ─────────────────────────────────────────────────────────────
+
+export interface ShowCardPayload   { action: 'showCard';    cardType: CardType; data: CardData }
+export interface HideCardPayload   { action: 'hideCard' }
 export interface PhotoResultPayload { action: 'photoResult'; photo: string }
-export type NuiPayload = ShowCardPayload | HideCardPayload | PhotoResultPayload
+export interface HideIdentityPayload { action: 'hideIdentity' }
+export type NuiPayload =
+  | ShowCardPayload
+  | HideCardPayload
+  | PhotoResultPayload
+  | HideIdentityPayload
+
+// ─── Types anciennement manquants (DrivingMenuView, LicensesView) ─────────────
+
+export interface LicenseEntry {
+  type: string
+  label: string
+  icon: string
+  valid: boolean
+  owned?: boolean
+}
+
+export interface LicensesPayload {
+  action: 'showLicenses'
+  firstname?: string
+  lastname?: string
+  unique_id?: string
+  photo?: string
+  licenses: LicenseEntry[]
+  checked_by?: string
+}
+
+export interface DrivingMenuLicense {
+  type: string
+  label: string
+  icon: string
+  owned: boolean
+}
+
+export interface DrivingMenuPayload {
+  action: 'showDrivingMenu'
+  licenses: DrivingMenuLicense[]
+}
+
+// ─── Shop ─────────────────────────────────────────────────────────────────────
+
+export interface ShopItem {
+  id: string
+  label: string
+  desc: string
+  price: number
+  owned: boolean
+}

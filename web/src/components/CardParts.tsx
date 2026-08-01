@@ -1,3 +1,4 @@
+// web/src/components/CardParts.tsx
 import { QRCodeSVG } from 'qrcode.react'
 import type { CardTheme } from '../data/themes'
 
@@ -43,7 +44,7 @@ export function HoloStrip({ theme }: { theme: CardTheme }) {
   )
 }
 
-// ─── Security micro-print ─────────────────────────────────────────────────────
+// ─── Security micro-print overlay ─────────────────────────────────────────────
 
 export function SecurityOverlay({ theme }: { theme: CardTheme }) {
   const text = `SECURE·${theme.agency}·OFFICIAL·DOCUMENT·`
@@ -121,7 +122,9 @@ export function AccessBadge({ level, max = 5, theme }: { level: number; max?: nu
 
 // ─── Status badge ─────────────────────────────────────────────────────────────
 
-export function StatusBadge({ status }: { status: 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'VALID' | 'REVOKED' }) {
+type StatusType = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'VALID' | 'REVOKED'
+
+export function StatusBadge({ status }: { status: StatusType }) {
   const colors: Record<string, { bg: string; text: string; glow: string }> = {
     ACTIVE:    { bg: '#14532d', text: '#4ade80', glow: '#4ade8060' },
     VALID:     { bg: '#14532d', text: '#4ade80', glow: '#4ade8060' },

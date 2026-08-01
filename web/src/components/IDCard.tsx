@@ -1,19 +1,19 @@
+// web/src/components/IDCard.tsx
+// Composant principal — 9 cartes identité + 3 cartes bancaires
+// IdentityView.tsx supprimé : était un doublon non utilisé de ce fichier.
+
 import { motion } from 'framer-motion'
 import type { CardType, CardData, CardTheme, BankCardData } from '../types'
 import type {
   IdentityCardData, DriverCardData, WeaponCardData, PoliceCardData,
-  MairieCardData, GovernmentCardData, EMSCardData, CompanyCardData, PassportCardData
+  MairieCardData, GovernmentCardData, EMSCardData, CompanyCardData, PassportCardData,
 } from '../types'
 import { THEMES } from '../data/themes'
 import {
   PhotoPlaceholder, HoloStrip, SecurityOverlay, SecureQR,
-  SignatureLine, AccessBadge, StatusBadge, Field, Chip, Barcode, PointsGauge
+  SignatureLine, AccessBadge, StatusBadge, Field, Chip, Barcode, PointsGauge,
 } from './CardParts'
-import { BankCardComponent } from './Bankcardcomponent'
-
-// ─── Tailles adaptées FiveM 1080p ────────────────────────────────────────────
-// Avant : width 600px — trop large en jeu
-// Après : width 480px max, padding réduit, fontes -15%
+import { BankCardComponent } from './BankCardComponent'
 
 const CARD_W = 480
 
@@ -21,13 +21,15 @@ const cardVariants = {
   hidden:  { opacity: 0, y: 24, scale: 0.93, rotateY: -10 },
   visible: {
     opacity: 1, y: 0, scale: 1, rotateY: 0,
-    transition: { type: 'spring', stiffness: 280, damping: 24 }
+    transition: { type: 'spring' as const, stiffness: 280, damping: 24 },
   },
   exit: {
     opacity: 0, y: -16, scale: 0.96,
-    transition: { duration: 0.2, ease: 'easeIn' }
-  }
+    transition: { duration: 0.2, ease: 'easeIn' as const },
+  },
 }
+
+// ─── Shell ────────────────────────────────────────────────────────────────────
 
 function CardShell({ type, children }: { type: CardType; children: React.ReactNode }) {
   const t = THEMES[type]
@@ -36,15 +38,13 @@ function CardShell({ type, children }: { type: CardType; children: React.ReactNo
       variants={cardVariants}
       initial="hidden" animate="visible" exit="exit"
       style={{
-        position: 'relative',
-        width: CARD_W,
-        borderRadius: 14,
+        position: 'relative', width: CARD_W, borderRadius: 14,
         background: `linear-gradient(135deg, ${t.gradFrom} 0%, ${t.gradVia} 50%, ${t.gradTo} 100%)`,
         border: `1px solid ${t.borderColor}`,
         boxShadow: `0 20px 60px rgba(0,0,0,0.9), 0 0 0 1px ${t.borderColor}, 0 0 30px ${t.accent}28`,
         overflow: 'hidden',
-        '--card-accent': t.accent,
-        '--card-glow': `${t.accent}40`,
+        '--card-accent':   t.accent,
+        '--card-glow':     `${t.accent}40`,
         '--card-glow-alt': `${t.accentAlt}30`,
       } as React.CSSProperties}
     >
@@ -55,32 +55,29 @@ function CardShell({ type, children }: { type: CardType; children: React.ReactNo
   )
 }
 
+// ─── Header band ──────────────────────────────────────────────────────────────
+
 function CardHeader({ type, rightContent }: { type: CardType; rightContent?: React.ReactNode }) {
   const t = THEMES[type]
   return (
     <div style={{
-      padding: '10px 16px 9px',
-      background: t.headerBg,
+      padding: '10px 16px 9px', background: t.headerBg,
       borderBottom: `1px solid ${t.borderColor}`,
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
     }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <span style={{ fontSize: 18 }}>{t.icon}</span>
         <div>
-          <div style={{
-            fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: 2,
-            color: t.textSecondary, textTransform: 'uppercase',
-          }}>{t.agency}</div>
-          <div style={{
-            fontFamily: 'Rajdhani', fontSize: 13, fontWeight: 700,
-            color: t.textPrimary, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 1,
-          }}>{t.name}</div>
+          <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, letterSpacing: 2, color: t.textSecondary, textTransform: 'uppercase' }}>{t.agency}</div>
+          <div style={{ fontFamily: 'Rajdhani', fontSize: 13, fontWeight: 700, color: t.textPrimary, letterSpacing: 1.2, textTransform: 'uppercase', marginTop: 1 }}>{t.name}</div>
         </div>
       </div>
       {rightContent}
     </div>
   )
 }
+
+// ─── Photo box ───────────────────────────────────────────────────────────────
 
 function PhotoBox({ photo, type, size = 76 }: { photo?: string; type: CardType; size?: number }) {
   const t = THEMES[type]
@@ -105,6 +102,7 @@ function Divider({ theme }: { theme: CardTheme }) {
 // ═══════════════════════════════════════════════════════
 // 1. IDENTITÉ
 // ═══════════════════════════════════════════════════════
+
 function IdentityCard({ data }: { data: IdentityCardData }) {
   const t = THEMES.identity
   return (
@@ -117,12 +115,8 @@ function IdentityCard({ data }: { data: IdentityCardData }) {
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div>
-            <div style={{ fontFamily: 'Oswald', fontSize: 21, fontWeight: 600, color: t.textPrimary, lineHeight: 1, letterSpacing: 0.8 }}>
-              {data.lastname}
-            </div>
-            <div style={{ fontFamily: 'Exo 2', fontSize: 15, fontWeight: 300, color: t.accent, letterSpacing: 0.4 }}>
-              {data.firstname}
-            </div>
+            <div style={{ fontFamily: 'Oswald', fontSize: 21, fontWeight: 600, color: t.textPrimary, lineHeight: 1, letterSpacing: 0.8 }}>{data.lastname}</div>
+            <div style={{ fontFamily: 'Exo 2', fontSize: 15, fontWeight: 300, color: t.accent, letterSpacing: 0.4 }}>{data.firstname}</div>
           </div>
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
@@ -130,8 +124,8 @@ function IdentityCard({ data }: { data: IdentityCardData }) {
             <Field label="Sexe" value={data.gender === 'M' ? 'Masculin' : 'Féminin'} theme={t} />
             <Field label="Taille" value={data.height} theme={t} />
             <Field label="Nationalité" value={data.nationality} theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="Émission"    value={data.issued ?? '—'} theme={t} />
+            <Field label="Expiration"  value={data.expiry ?? '—'} theme={t} />
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -139,15 +133,9 @@ function IdentityCard({ data }: { data: IdentityCardData }) {
           <Field label="N° Identifiant" value={data.uniqueId ?? '—'} mono theme={t} />
         </div>
       </div>
-      <div style={{
-        padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: `linear-gradient(90deg, ${t.accent}08, transparent)`,
-      }}>
+      <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `linear-gradient(90deg, ${t.accent}08, transparent)` }}>
         <Barcode seed={data.uniqueId ?? data.lastname} theme={t} />
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>
-          RÉPUBLIQUE FRANÇAISE • MINISTÈRE DE L'INTÉRIEUR
-        </div>
+        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>RÉPUBLIQUE FRANÇAISE • MINISTÈRE DE L'INTÉRIEUR</div>
       </div>
     </CardShell>
   )
@@ -156,6 +144,7 @@ function IdentityCard({ data }: { data: IdentityCardData }) {
 // ═══════════════════════════════════════════════════════
 // 2. PERMIS DE CONDUIRE
 // ═══════════════════════════════════════════════════════
+
 function DriverCard({ data }: { data: DriverCardData }) {
   const t = THEMES.driver
   return (
@@ -163,12 +152,7 @@ function DriverCard({ data }: { data: DriverCardData }) {
       <CardHeader type="driver" rightContent={
         <div style={{ display: 'flex', gap: 3 }}>
           {data.categories.map(c => (
-            <div key={c} style={{
-              width: 24, height: 24, borderRadius: 3,
-              background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center',
-              fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 12, color: '#fff',
-              boxShadow: `0 0 6px ${t.accent}80`,
-            }}>{c}</div>
+            <div key={c} style={{ width: 24, height: 24, borderRadius: 3, background: t.accent, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Rajdhani', fontWeight: 700, fontSize: 12, color: '#fff', boxShadow: `0 0 6px ${t.accent}80` }}>{c}</div>
           ))}
         </div>
       } />
@@ -179,37 +163,25 @@ function DriverCard({ data }: { data: DriverCardData }) {
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
           <div>
-            <div style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 600, color: t.textPrimary, letterSpacing: 0.8 }}>
-              {data.lastname}
-            </div>
-            <div style={{ fontFamily: 'Exo 2', fontSize: 14, fontWeight: 300, color: t.accent }}>
-              {data.firstname}
-            </div>
+            <div style={{ fontFamily: 'Oswald', fontSize: 20, fontWeight: 600, color: t.textPrimary, letterSpacing: 0.8 }}>{data.lastname}</div>
+            <div style={{ fontFamily: 'Exo 2', fontSize: 14, fontWeight: 300, color: t.accent }}>{data.firstname}</div>
           </div>
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6px 12px' }}>
-            <Field label="N° Permis" value={data.licenseNumber} mono theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
+            <Field label="N° Permis"  value={data.licenseNumber} mono theme={t} />
+            <Field label="Émission"   value={data.issued ?? '—'} theme={t} />
             <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
           </div>
           <PointsGauge points={data.points} max={data.maxPoints} theme={t} />
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <SecureQR value={`DRV:${data.licenseNumber}`} theme={t} size={44} />
-          <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: t.textSecondary, textAlign: 'right' }}>
-            {data.categories.join(' • ')}
-          </div>
+          <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: t.textSecondary, textAlign: 'right' }}>{data.categories.join(' • ')}</div>
         </div>
       </div>
-      <div style={{
-        padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-        background: `linear-gradient(90deg, ${t.accent}08, transparent)`,
-      }}>
+      <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: `linear-gradient(90deg, ${t.accent}08, transparent)` }}>
         <Barcode seed={data.licenseNumber} theme={t} />
-        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>
-          MINISTÈRE DES TRANSPORTS
-        </div>
+        <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>MINISTÈRE DES TRANSPORTS</div>
       </div>
     </CardShell>
   )
@@ -218,6 +190,7 @@ function DriverCard({ data }: { data: DriverCardData }) {
 // ═══════════════════════════════════════════════════════
 // 3. ARME
 // ═══════════════════════════════════════════════════════
+
 function WeaponCard({ data }: { data: WeaponCardData }) {
   const t = THEMES.weapon
   return (
@@ -237,18 +210,14 @@ function WeaponCard({ data }: { data: WeaponCardData }) {
           <Field label="Type d'autorisation" value={data.authorizationType} theme={t} />
           <AccessBadge level={data.accessLevel} theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
-            <Field label="N° Licence" value={data.licenseNumber} mono theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="N° Licence"  value={data.licenseNumber} mono theme={t} />
+            <Field label="Expiration"  value={data.expiry ?? '—'} theme={t} />
           </div>
           <div>
             <div style={{ fontFamily: 'Share Tech Mono', fontSize: 7, color: t.textSecondary, letterSpacing: 1, marginBottom: 3 }}>ARMES AUTORISÉES</div>
             <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
               {data.allowedWeapons.map(w => (
-                <span key={w} style={{
-                  padding: '1px 6px', borderRadius: 3,
-                  background: `${t.accent}20`, border: `1px solid ${t.accent}40`,
-                  fontFamily: 'Rajdhani', fontSize: 9, color: t.textPrimary,
-                }}>{w}</span>
+                <span key={w} style={{ padding: '1px 6px', borderRadius: 3, background: `${t.accent}20`, border: `1px solid ${t.accent}40`, fontFamily: 'Rajdhani', fontSize: 9, color: t.textPrimary }}>{w}</span>
               ))}
             </div>
           </div>
@@ -257,10 +226,7 @@ function WeaponCard({ data }: { data: WeaponCardData }) {
           <SecureQR value={`WPN:${data.licenseNumber}`} theme={t} size={44} />
         </div>
       </div>
-      <div style={{
-        padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Barcode seed={data.licenseNumber} theme={t} />
         <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>REGISTRE OFFICIEL</div>
       </div>
@@ -271,6 +237,7 @@ function WeaponCard({ data }: { data: WeaponCardData }) {
 // ═══════════════════════════════════════════════════════
 // 4. POLICE
 // ═══════════════════════════════════════════════════════
+
 function PoliceCard({ data }: { data: PoliceCardData }) {
   const t = THEMES.police
   return (
@@ -298,10 +265,10 @@ function PoliceCard({ data }: { data: PoliceCardData }) {
           </div>
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
-            <Field label="Badge N°" value={data.badgeNumber} mono theme={t} />
+            <Field label="Badge N°"    value={data.badgeNumber} mono theme={t} />
             <Field label="Département" value={data.department} theme={t} />
-            <Field label="Service" value={data.service} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="Service"     value={data.service} theme={t} />
+            <Field label="Expiration"  value={data.expiry ?? '—'} theme={t} />
           </div>
           <AccessBadge level={data.accessLevel} theme={t} />
         </div>
@@ -323,6 +290,7 @@ function PoliceCard({ data }: { data: PoliceCardData }) {
 // ═══════════════════════════════════════════════════════
 // 5. MAIRIE
 // ═══════════════════════════════════════════════════════
+
 function MairieCard({ data }: { data: MairieCardData }) {
   const t = THEMES.mairie
   return (
@@ -342,24 +310,19 @@ function MairieCard({ data }: { data: MairieCardData }) {
           <Divider theme={t} />
           <Field label="Fonction" value={data.function} large theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
-            <Field label="ID Employé" value={data.employeeId} mono theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="ID Employé"  value={data.employeeId} mono theme={t} />
+            <Field label="Émission"    value={data.issued ?? '—'} theme={t} />
+            <Field label="Expiration"  value={data.expiry ?? '—'} theme={t} />
           </div>
           {data.officialSignature && (
-            <div style={{ fontFamily: 'Oswald', fontSize: 11, fontStyle: 'italic', color: `${t.accent}90`, letterSpacing: 0.5 }}>
-              — {data.officialSignature}
-            </div>
+            <div style={{ fontFamily: 'Oswald', fontSize: 11, fontStyle: 'italic', color: `${t.accent}90`, letterSpacing: 0.5 }}>— {data.officialSignature}</div>
           )}
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
           <SecureQR value={`MRE:${data.employeeId}`} theme={t} size={44} />
         </div>
       </div>
-      <div style={{
-        padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Barcode seed={data.employeeId} theme={t} />
         <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>MAIRIE DE LOS SANTOS</div>
       </div>
@@ -370,6 +333,7 @@ function MairieCard({ data }: { data: MairieCardData }) {
 // ═══════════════════════════════════════════════════════
 // 6. GOUVERNEMENT
 // ═══════════════════════════════════════════════════════
+
 function GovernmentCard({ data }: { data: GovernmentCardData }) {
   const t = THEMES.government
   return (
@@ -395,9 +359,9 @@ function GovernmentCard({ data }: { data: GovernmentCardData }) {
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
             <Field label="ID Gouvernemental" value={data.govId} mono theme={t} />
-            <Field label="Département" value={data.nationalDepartment} theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="Département"       value={data.nationalDepartment} theme={t} />
+            <Field label="Émission"          value={data.issued ?? '—'} theme={t} />
+            <Field label="Expiration"        value={data.expiry ?? '—'} theme={t} />
           </div>
           <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             {data.specialAuthorizations.map(a => (
@@ -418,6 +382,7 @@ function GovernmentCard({ data }: { data: GovernmentCardData }) {
 // ═══════════════════════════════════════════════════════
 // 7. EMS
 // ═══════════════════════════════════════════════════════
+
 function EMSCard({ data }: { data: EMSCardData }) {
   const t = THEMES.ems
   return (
@@ -427,9 +392,7 @@ function EMSCard({ data }: { data: EMSCardData }) {
       <div style={{ padding: '12px 16px', display: 'flex', gap: 12 }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, alignItems: 'center' }}>
           <PhotoBox photo={data.photo} type="ems" size={74} />
-          <div style={{ padding: '3px 10px', borderRadius: 5, background: '#7f1d1d', border: '1px solid #f87171', fontFamily: 'Rajdhani', fontSize: 15, fontWeight: 700, color: '#fca5a5', letterSpacing: 1, textAlign: 'center' }}>
-            {data.bloodGroup}
-          </div>
+          <div style={{ padding: '3px 10px', borderRadius: 5, background: '#7f1d1d', border: '1px solid #f87171', fontFamily: 'Rajdhani', fontSize: 15, fontWeight: 700, color: '#fca5a5', letterSpacing: 1, textAlign: 'center' }}>{data.bloodGroup}</div>
         </div>
         <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
           <div>
@@ -439,10 +402,10 @@ function EMSCard({ data }: { data: EMSCardData }) {
           </div>
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
-            <Field label="N° EMS" value={data.emsNumber} mono theme={t} />
-            <Field label="Département" value={data.department} theme={t} />
+            <Field label="N° EMS"         value={data.emsNumber} mono theme={t} />
+            <Field label="Département"    value={data.department} theme={t} />
             <Field label="Groupe sanguin" value={data.bloodGroup} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="Expiration"     value={data.expiry ?? '—'} theme={t} />
           </div>
           <div style={{ display: 'flex', gap: 3, flexWrap: 'wrap' }}>
             {data.medicalAuthorizations.map(a => (
@@ -463,6 +426,7 @@ function EMSCard({ data }: { data: EMSCardData }) {
 // ═══════════════════════════════════════════════════════
 // 8. ENTREPRISE
 // ═══════════════════════════════════════════════════════
+
 function CompanyCard({ data }: { data: CompanyCardData }) {
   const t = THEMES.company
   return (
@@ -483,9 +447,9 @@ function CompanyCard({ data }: { data: CompanyCardData }) {
           <Field label="Poste" value={data.position} large theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
             <Field label="Département" value={data.companyDepartment} theme={t} />
-            <Field label="ID Employé" value={data.employeeId} mono theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="ID Employé"  value={data.employeeId} mono theme={t} />
+            <Field label="Émission"    value={data.issued ?? '—'} theme={t} />
+            <Field label="Expiration"  value={data.expiry ?? '—'} theme={t} />
           </div>
           <AccessBadge level={data.accessLevel} theme={t} />
         </div>
@@ -493,10 +457,7 @@ function CompanyCard({ data }: { data: CompanyCardData }) {
           <SecureQR value={`EMP:${data.employeeId}`} theme={t} size={44} />
         </div>
       </div>
-      <div style={{
-        padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`,
-        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      }}>
+      <div style={{ padding: '6px 16px 10px', borderTop: `1px solid ${t.borderColor}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
         <Barcode seed={data.employeeId} theme={t} />
         <div style={{ fontFamily: 'Share Tech Mono', fontSize: 8, color: `${t.textSecondary}60`, letterSpacing: 1 }}>{data.company.toUpperCase()} • EMPLOYEE BADGE</div>
       </div>
@@ -507,6 +468,7 @@ function CompanyCard({ data }: { data: CompanyCardData }) {
 // ═══════════════════════════════════════════════════════
 // 9. PASSEPORT
 // ═══════════════════════════════════════════════════════
+
 function PassportCard({ data }: { data: PassportCardData }) {
   const t = THEMES.passport
   return (
@@ -531,12 +493,12 @@ function PassportCard({ data }: { data: PassportCardData }) {
           </div>
           <Divider theme={t} />
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '5px 12px' }}>
-            <Field label="Nationalité" value={data.nationality} theme={t} />
+            <Field label="Nationalité"      value={data.nationality} theme={t} />
             <Field label="Date de naissance" value={data.dateOfBirth} theme={t} />
-            <Field label="Sexe" value={data.gender === 'M' ? 'M — Masculin' : 'F — Féminin'} theme={t} />
-            <Field label="Pays émetteur" value={data.issuingCountry} theme={t} />
-            <Field label="Émission" value={data.issued ?? '—'} theme={t} />
-            <Field label="Expiration" value={data.expiry ?? '—'} theme={t} />
+            <Field label="Sexe"             value={data.gender === 'M' ? 'M — Masculin' : 'F — Féminin'} theme={t} />
+            <Field label="Pays émetteur"    value={data.issuingCountry} theme={t} />
+            <Field label="Émission"         value={data.issued ?? '—'} theme={t} />
+            <Field label="Expiration"       value={data.expiry ?? '—'} theme={t} />
           </div>
         </div>
         <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -564,6 +526,9 @@ interface IDCardProps {
 }
 
 export function IDCard({ type, data, isBankCard }: IDCardProps) {
+  if (isBankCard || type === 'bank_card' || type === 'bank_gold_card' || type === 'bank_diamond_card') {
+    return <BankCardComponent data={data as BankCardData} />
+  }
   switch (type) {
     case 'identity':   return <IdentityCard   data={data as IdentityCardData} />
     case 'driver':     return <DriverCard     data={data as DriverCardData} />
@@ -574,10 +539,6 @@ export function IDCard({ type, data, isBankCard }: IDCardProps) {
     case 'ems':        return <EMSCard        data={data as EMSCardData} />
     case 'company':    return <CompanyCard    data={data as CompanyCardData} />
     case 'passport':   return <PassportCard   data={data as PassportCardData} />
-    case 'bank_card':
-    case 'bank_gold_card':
-    case 'bank_diamond_card':
-      return <BankCardComponent data={data as BankCardData} />
-    default: return null
+    default:           return null
   }
 }

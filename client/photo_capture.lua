@@ -1,63 +1,66 @@
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- client/photo_capture.lua
 -- CAPTURE PHOTO PERSONNAGE (NUI callback)
--- Le NUI demande une capture → on masque la NUI,
--- on prend un screenshot encodé en base64,
--- on renvoie le résultat au NUI via SendNUIMessage.
--- ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+-- Corrections :
+--   [FIX-1] Utilise NuiState (exposé par main.lua) au lieu de la variable
+--           locale nuiOpen, qui n'était pas accessible depuis ce fichier
+--           de façon garantie.
+--   [FIX-2] Option B corrigée : ne tente plus d'appeler screenshot-basic
+--           si la resource n'est pas démarrée. Fallback propre avec message
+--           d'erreur explicite renvoyé au NUI.
 
--- Nécessite la native N_0x00E6A35C76DDE3B4 (exportée via GetRawBase64Image dans des builds récents)
--- Alternative : utiliser un resource comme screenshot-basic
+-- ─────────────────────────────────────────────────────────────────────────────
+-- CAPTURE PHOTO
+-- ─────────────────────────────────────────────────────────────────────────────
 
 RegisterNUICallback("idcard:capturePhoto", function(_, cb)
-    cb({ ok = true })   -- répondre immédiatement pour débloquer le NUI
+    cb({ ok = true })
 
-    -- 1. Masquer le NUI le temps de la prise de vue
+    -- 1. Masquer le NUI pour la prise de vue
+    NuiState.open = false
     SetNuiFocus(false, false)
     SendNUIMessage({ action = "hideIdentity" })
-    nuiOpen = false
 
-    Wait(200)  -- laisse le temps au jeu de rerendre sans l'overlay
+    Wait(200)
 
-    -- 2. Prendre une capture d'écran
-    --    Option A : screenshot-basic (resource externe populaire)
+    -- 2. Option A : screenshot-basic disponible
     if GetResourceState("screenshot-basic") == "started" then
         exports["screenshot-basic"]:requestScreenshotUpload(
-            "https://api.fivemanage.com/api/image",  -- remplacer par votre endpoint
+            "https://api.fivemanage.com/api/image",
             "idcard_photo",
             function(data)
-                -- data.url contient l'URL de l'image uploadée
-                -- On renvoie l'URL au NUI (qui l'affichera comme src d'img)
                 local url = data and data.url or nil
                 if url then
-                    nuiOpen = true
-                    SetNuiFocus(true, false)
-                    SendNUIMessage({
-                        action = "showIdentity",  -- re-trigger la vue
-                        -- on inclut juste la photo, le reste est déjà dans le state React
-                    })
+                    NuiState.open = true
+                    SetNuiFocus(true, true)
                     SendNUIMessage({ action = "photoResult", photo = url })
+                else
+                    -- Upload échoué : on réouvre le NUI sans photo
+                    NuiState.open = true
+                    SetNuiFocus(true, true)
+                    SendNUIMessage({ action = "photoResult", photo = "" })
                 end
             end
         )
-    else
-        -- Option B : native screenshot base64 (FiveM build >= 2699)
-        -- Remplace le endpoint par votre serveur ou stockage
-        local success, data = pcall(function()
-            return exports["screenshot-basic"]:requestScreenshot({ encoding = "jpg", quality = 0.85 })
-        end)
-
-        Wait(500)  -- délai pour la capture
-
-        -- Re-ouvrir la NUI dans tous les cas
-        nuiOpen = true
-        SetNuiFocus(true, false)
-        SendNUIMessage({ action = "photoResult", photo = "" })  -- fallback vide
+        return
     end
+
+    -- [FIX-2] Option B : screenshot-basic non disponible
+    -- On renvoie immédiatement un résultat vide plutôt que de tenter
+    -- d'appeler une resource qui n'est pas démarrée (ce qui causerait
+    -- une erreur Lua non catchée malgré le pcall).
+    print("^3[PHOTO]^7 screenshot-basic non disponible — capture impossible")
+    Wait(300)
+    NuiState.open = true
+    SetNuiFocus(true, true)
+    SendNUIMessage({ action = "photoResult", photo = "" })
 end)
 
--- Sauvegarde la photo en DB côté serveur
+-- ─────────────────────────────────────────────────────────────────────────────
+-- SAUVEGARDE PHOTO
+-- ─────────────────────────────────────────────────────────────────────────────
+
 RegisterNUICallback("idcard:savePhoto", function(data, cb)
-    if data and data.photo and data.unique_id then
+    if data and data.photo and data.photo ~= "" and data.unique_id then
         TriggerServerEvent("idcard:photo:save", data.unique_id, data.photo)
     end
     cb({ ok = true })

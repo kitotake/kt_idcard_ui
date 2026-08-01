@@ -1,10 +1,13 @@
--- kt_idcard_ui v3 — SERVER FIXED v2
+-- server/main.lua
+-- kt_idcard_ui v3 — SERVER v3
 -- Corrections :
---   [FIX-1] getCharacter() normalise toutes les structures connues du framework Union
+--   [FIX-1] getCharacter() normalise toutes les structures Union connues
 --   [FIX-2] Helpers isConnected/notify/hasItem/addItem déclarés avant tout usage
---   [FIX-3] Contrôles policiers implémentés (checkIdentity, checkLicense, checkBadge)
---   [FIX-4] showToNearby implémenté côté serveur
+--   [FIX-3] Contrôles policiers + rate limiting anti-spam
+--   [FIX-4] showToNearby : données correctes selon cardType (plus que identity)
 --   [FIX-5] idcard:npc:interact et idcard:driving:interact routent vers la bonne carte
+--   [FIX-6] idcard:license:check : feedback si le débit échoue (solde insuffisant)
+--   [FIX-7] Numéros de badge/permis persistants via user_licenses_meta
 
 local log = Logger:child("IDCARD:SERVER")
 
@@ -20,7 +23,6 @@ end
 
 -- ─────────────────────────────────────────────
 -- CHARACTER WRAPPER [FIX-1]
--- Normalise toutes les structures retournées par Union
 -- ─────────────────────────────────────────────
 
 local function getCharacter(src)
@@ -30,30 +32,17 @@ local function getCharacter(src)
         return exports[Config.resources.union]:GetCharacterState(src)
     end)
 
-    if not ok then
-        dprint("GetCharacterState ERROR for src=" .. tostring(src))
+    if not ok or not raw or type(raw) ~= "table" then
+        dprint("GetCharacterState failed for src=" .. tostring(src))
         return nil
     end
 
-    if not raw then
-        dprint("Character NIL for src=" .. tostring(src))
-        return nil
-    end
-
-    if type(raw) ~= "table" then
-        dprint("Character not a table for src=" .. tostring(src))
-        return nil
-    end
-
-    -- Normalisation : toutes les structures connues de Union
-    if raw.data        and type(raw.data)      == "table" then return raw.data      end
-    if raw.character   and type(raw.character) == "table" then return raw.character end
+    if raw.data             and type(raw.data)             == "table" then return raw.data             end
+    if raw.character        and type(raw.character)        == "table" then return raw.character        end
     if raw.currentCharacter and type(raw.currentCharacter) == "table" then return raw.currentCharacter end
-
-    -- Vérification minimale : doit avoir au moins firstname ou unique_id
     if raw.firstname or raw.unique_id then return raw end
 
-    dprint("Character structure inconnue pour src=" .. tostring(src) .. " : " .. json.encode(raw):sub(1, 120))
+    dprint("Unknown character structure for src=" .. tostring(src))
     return nil
 end
 
@@ -92,6 +81,37 @@ local function isInJobs(char, jobList)
 end
 
 -- ─────────────────────────────────────────────
+-- NUMÉROS PERSISTANTS [FIX-7]
+-- Évite les math.random à chaque affichage.
+-- La table user_licenses_meta est créée dans sql/migrations.sql
+-- ─────────────────────────────────────────────
+
+local function getPersistentNumber(uniqueId, prefix, cb)
+    if not uniqueId then
+        cb(("%s-%04d"):format(prefix, math.random(1000, 9999)))
+        return
+    end
+
+    exports.oxmysql:scalar(
+        "SELECT license_number FROM user_licenses_meta WHERE unique_id = ? LIMIT 1",
+        { uniqueId },
+        function(existing)
+            if existing then
+                cb(existing)
+            else
+                local number = ("%s-%04d"):format(prefix, math.random(1000, 9999))
+                exports.oxmysql:execute(
+                    "INSERT IGNORE INTO user_licenses_meta (unique_id, license_number) VALUES (?, ?)",
+                    { uniqueId, number },
+                    nil
+                )
+                cb(number)
+            end
+        end
+    )
+end
+
+-- ─────────────────────────────────────────────
 -- CARD SENDER
 -- ─────────────────────────────────────────────
 
@@ -106,19 +126,13 @@ end
 
 -- ─────────────────────────────────────────────
 -- NPC INTERACTIONS [FIX-5]
--- idcard:npc:interact     → carte d'identité
--- idcard:driving:interact → permis de conduire
 -- ─────────────────────────────────────────────
 
 RegisterNetEvent("idcard:npc:interact", function()
     local src  = source
     local char = getCharacter(src)
-    if not char then
-        dprint("NO CHAR on npc:interact for src=" .. tostring(src))
-        return
-    end
+    if not char then return end
 
-    -- Vérifier que le joueur possède (ou créer) la carte d'identité
     if not hasItem(src, Config.items.identity) then
         addItem(src, Config.items.identity)
         notify(src, "Votre carte d'identité a été créée.", "success")
@@ -137,10 +151,7 @@ end)
 RegisterNetEvent("idcard:driving:interact", function()
     local src  = source
     local char = getCharacter(src)
-    if not char then
-        dprint("NO CHAR on driving:interact for src=" .. tostring(src))
-        return
-    end
+    if not char then return end
 
     sendCard(src, "driver", {
         type          = "driver",
@@ -152,16 +163,13 @@ RegisterNetEvent("idcard:driving:interact", function()
 end)
 
 -- ─────────────────────────────────────────────
--- BASIC ID CARD (usage depuis inventaire)
+-- BASIC ID CARD (inventaire)
 -- ─────────────────────────────────────────────
 
 RegisterNetEvent("idcard:use", function()
     local src  = source
     local char = getCharacter(src)
-    if not char then
-        dprint("NO CHAR on identity use for src=" .. tostring(src))
-        return
-    end
+    if not char then return end
 
     sendCard(src, "identity", {
         type        = "identity",
@@ -192,17 +200,17 @@ RegisterNetEvent("idcard:license:use", function()
 end)
 
 -- ─────────────────────────────────────────────
--- LICENSE CHECK (véhicule)
+-- LICENSE CHECK (véhicule) [FIX-6]
+-- Feedback explicite si le débit échoue
 -- ─────────────────────────────────────────────
 
 RegisterNetEvent("idcard:license:check", function(licType)
-    local src  = source
+    local src = source
     if not isConnected(src) then return end
 
     local char = getCharacter(src)
     if not char or not char.unique_id then return end
 
-    -- Vérifier en BDD si le joueur a le permis requis
     exports.oxmysql:scalar(
         "SELECT COUNT(*) FROM user_licenses WHERE unique_id = ? AND type = ?",
         { char.unique_id, licType },
@@ -210,13 +218,24 @@ RegisterNetEvent("idcard:license:check", function(licType)
             if not count or count < 1 then
                 local fine = Config.licenses.fine or 1500
                 notify(src,
-                    ("Permis de catégorie %s requis. Amende : $%d"):format(licType, fine),
+                    ("Permis de catégorie %s requis. Tentative d'amende : $%d"):format(licType, fine),
                     "error")
-                -- Déduire l'amende du compte bancaire
+
+                -- [FIX-6] Vérification du résultat du débit
                 exports.oxmysql:execute(
                     "UPDATE bank_accounts SET balance = balance - ? WHERE unique_id = ? AND type = 'personal' AND balance >= ?",
                     { fine, char.unique_id, fine },
-                    nil
+                    function(result)
+                        if result and (result.affectedRows or 0) > 0 then
+                            notify(src,
+                                ("Amende de $%d prélevée pour conduite sans permis %s."):format(fine, licType),
+                                "error")
+                        else
+                            notify(src,
+                                "Solde insuffisant pour l'amende. Convocation au tribunal.",
+                                "warning")
+                        end
+                    end
                 )
             end
         end
@@ -232,12 +251,14 @@ RegisterNetEvent("idcard:weapon:use", function()
     local char = getCharacter(src)
     if not char then return end
 
-    sendCard(src, "weapon", {
-        type          = "weapon",
-        firstname     = char.firstname,
-        lastname      = char.lastname,
-        licenseNumber = ("WPN-%04d"):format(math.random(1000, 9999)),
-    })
+    getPersistentNumber(char.unique_id, "WPN", function(number)
+        sendCard(src, "weapon", {
+            type          = "weapon",
+            firstname     = char.firstname,
+            lastname      = char.lastname,
+            licenseNumber = number,
+        })
+    end)
 end)
 
 -- ─────────────────────────────────────────────
@@ -254,13 +275,15 @@ RegisterNetEvent("idcard:police:use", function()
         return
     end
 
-    sendCard(src, "police", {
-        type        = "police",
-        firstname   = char.firstname,
-        lastname    = char.lastname,
-        badgeNumber = ("LSPD-%04d"):format(math.random(1000, 9999)),
-        rank        = char.job_grade_label or char.job or "Officer",
-    })
+    getPersistentNumber(char.unique_id, "LSPD", function(number)
+        sendCard(src, "police", {
+            type        = "police",
+            firstname   = char.firstname,
+            lastname    = char.lastname,
+            badgeNumber = number,
+            rank        = char.job_grade_label or char.job or "Officer",
+        })
+    end)
 end)
 
 -- ─────────────────────────────────────────────
@@ -274,19 +297,46 @@ RegisterNetEvent("idcard:ems:use", function()
 
     if not isInJobs(char, Config.emsJobs) then return end
 
-    sendCard(src, "ems", {
-        type      = "ems",
-        firstname = char.firstname,
-        lastname  = char.lastname,
-        emsNumber = ("EMS-%04d"):format(math.random(1000, 9999)),
-    })
+    getPersistentNumber(char.unique_id, "EMS", function(number)
+        sendCard(src, "ems", {
+            type      = "ems",
+            firstname = char.firstname,
+            lastname  = char.lastname,
+            emsNumber = number,
+        })
+    end)
 end)
 
 -- ─────────────────────────────────────────────
 -- CONTRÔLES POLICIERS [FIX-3]
+-- Rate limiting : un contrôle par joueur cible toutes les 10s par officier
 -- ─────────────────────────────────────────────
 
--- Récupère la cible par serverId
+local policeCheckCooldowns = {}
+
+local function canPoliceCheck(officerSrc, targetSid, checkType)
+    local key = tostring(officerSrc) .. "_" .. tostring(targetSid) .. "_" .. checkType
+    local now = GetGameTimer()
+    if policeCheckCooldowns[key] and (now - policeCheckCooldowns[key]) < 10000 then
+        return false
+    end
+    policeCheckCooldowns[key] = now
+    return true
+end
+
+-- Nettoyage périodique des cooldowns (toutes les 5 minutes)
+Citizen.CreateThread(function()
+    while true do
+        Citizen.Wait(300000)
+        local now = GetGameTimer()
+        for k, t in pairs(policeCheckCooldowns) do
+            if (now - t) > 60000 then
+                policeCheckCooldowns[k] = nil
+            end
+        end
+    end
+end)
+
 local function getTargetChar(targetSid)
     local sid = tonumber(targetSid)
     if not sid then return nil, nil end
@@ -296,9 +346,14 @@ local function getTargetChar(targetSid)
 end
 
 RegisterNetEvent("idcard:police:checkIdentity", function(targetSid)
-    local src      = source
-    local officer  = getCharacter(src)
+    local src     = source
+    local officer = getCharacter(src)
     if not officer or not isInJobs(officer, Config.policeJobs) then return end
+
+    if not canPoliceCheck(src, targetSid, "identity") then
+        notify(src, "Veuillez patienter avant un nouveau contrôle.", "warning")
+        return
+    end
 
     local tid, target = getTargetChar(targetSid)
     if not tid or not target then
@@ -306,16 +361,13 @@ RegisterNetEvent("idcard:police:checkIdentity", function(targetSid)
         return
     end
 
-    -- Log du contrôle
     if officer.unique_id and target.unique_id then
         exports.oxmysql:execute(
             "INSERT INTO police_checks_log (officer_uid, target_uid, check_type) VALUES (?, ?, 'identity')",
-            { officer.unique_id, target.unique_id },
-            nil
+            { officer.unique_id, target.unique_id }, nil
         )
     end
 
-    -- Envoyer la carte à l'officier
     sendCard(src, "identity", {
         type        = "identity",
         firstname   = target.firstname,
@@ -330,6 +382,11 @@ RegisterNetEvent("idcard:police:checkLicense", function(targetSid)
     local src     = source
     local officer = getCharacter(src)
     if not officer or not isInJobs(officer, Config.policeJobs) then return end
+
+    if not canPoliceCheck(src, targetSid, "license") then
+        notify(src, "Veuillez patienter avant un nouveau contrôle.", "warning")
+        return
+    end
 
     local tid, target = getTargetChar(targetSid)
     if not tid or not target then
@@ -349,8 +406,7 @@ RegisterNetEvent("idcard:police:checkLicense", function(targetSid)
             if officer.unique_id then
                 exports.oxmysql:execute(
                     "INSERT INTO police_checks_log (officer_uid, target_uid, check_type) VALUES (?, ?, 'license')",
-                    { officer.unique_id, target.unique_id },
-                    nil
+                    { officer.unique_id, target.unique_id }, nil
                 )
             end
 
@@ -378,6 +434,11 @@ RegisterNetEvent("idcard:police:checkBadge", function(targetSid)
     local officer = getCharacter(src)
     if not officer or not isInJobs(officer, Config.policeJobs) then return end
 
+    if not canPoliceCheck(src, targetSid, "badge") then
+        notify(src, "Veuillez patienter avant un nouveau contrôle.", "warning")
+        return
+    end
+
     local tid, target = getTargetChar(targetSid)
     if not tid or not target then
         notify(src, "Joueur introuvable.", "error")
@@ -392,57 +453,130 @@ RegisterNetEvent("idcard:police:checkBadge", function(targetSid)
     if officer.unique_id and target.unique_id then
         exports.oxmysql:execute(
             "INSERT INTO police_checks_log (officer_uid, target_uid, check_type) VALUES (?, ?, 'badge')",
-            { officer.unique_id, target.unique_id },
-            nil
+            { officer.unique_id, target.unique_id }, nil
         )
     end
 
-    sendCard(src, "police", {
-        type        = "police",
-        firstname   = target.firstname,
-        lastname    = target.lastname,
-        badgeNumber = ("LSPD-%04d"):format(math.random(1000, 9999)),
-        rank        = target.job_grade_label or target.job or "Officer",
-    })
+    getPersistentNumber(target.unique_id, "LSPD", function(number)
+        sendCard(src, "police", {
+            type        = "police",
+            firstname   = target.firstname,
+            lastname    = target.lastname,
+            badgeNumber = number,
+            rank        = target.job_grade_label or target.job or "Officer",
+        })
+    end)
 end)
 
 -- ─────────────────────────────────────────────
 -- SHOW TO NEARBY [FIX-4]
+-- Données correctes selon cardType + vérification item/job
 -- ─────────────────────────────────────────────
+
+-- Constructeurs de payload par type de carte
+local function buildNearbyPayload(cardType, char, badgeNumber)
+    if cardType == "identity" then
+        return {
+            type        = "identity",
+            firstname   = char.firstname,
+            lastname    = char.lastname,
+            uniqueId    = char.unique_id,
+            dateOfBirth = char.dateofbirth or char.dob or "—",
+            nationality = "Française",
+        }
+    elseif cardType == "driver" then
+        return {
+            type          = "driver",
+            firstname     = char.firstname,
+            lastname      = char.lastname,
+            licenseNumber = char.unique_id or "UNKNOWN",
+            categories    = { "B" },
+        }
+    elseif cardType == "police" then
+        return {
+            type        = "police",
+            firstname   = char.firstname,
+            lastname    = char.lastname,
+            badgeNumber = badgeNumber or "LSPD-0000",
+            rank        = char.job_grade_label or char.job or "Officer",
+        }
+    else
+        -- Fallback identity
+        return {
+            type        = "identity",
+            firstname   = char.firstname,
+            lastname    = char.lastname,
+            uniqueId    = char.unique_id,
+            dateOfBirth = char.dateofbirth or char.dob or "—",
+            nationality = "Française",
+        }
+    end
+end
 
 RegisterNetEvent("idcard:showToNearby", function(cardType)
     local src  = source
     local char = getCharacter(src)
     if not char or not isConnected(src) then return end
 
+    -- [FIX-4] Vérification : le joueur doit avoir le droit de montrer ce type
+    if cardType == "police" then
+        if not isInJobs(char, Config.policeJobs) then
+            notify(src, "Vous n'avez pas de badge de police.", "error")
+            return
+        end
+    elseif cardType == "identity" then
+        if not hasItem(src, Config.items.identity) then
+            notify(src, "Vous n'avez pas de carte d'identité.", "error")
+            return
+        end
+    elseif cardType == "driver" then
+        if not hasItem(src, Config.items.driver) then
+            notify(src, "Vous n'avez pas de permis de conduire.", "error")
+            return
+        end
+    end
+
     local srcCoords = GetEntityCoords(GetPlayerPed(src))
     local radius    = Config.showRadius or 5.0
 
-    for _, playerId in ipairs(GetPlayers()) do
-        local pid = tonumber(playerId)
-        if pid and pid ~= src and isConnected(pid) then
-            local ped    = GetPlayerPed(pid)
-            local coords = GetEntityCoords(ped)
-            if #(srcCoords - coords) <= radius then
-                TriggerClientEvent("idcard:show", pid, {
-                    action   = "showCard",
-                    cardType = cardType,
-                    data     = {
-                        type        = cardType,
-                        firstname   = char.firstname,
-                        lastname    = char.lastname,
-                        uniqueId    = char.unique_id,
-                        dateOfBirth = char.dateofbirth or char.dob or "—",
-                        nationality = "Française",
-                    },
-                })
+    -- Pour la carte police, on récupère le numéro persistant
+    if cardType == "police" then
+        getPersistentNumber(char.unique_id, "LSPD", function(number)
+            local payload = buildNearbyPayload(cardType, char, number)
+            for _, playerId in ipairs(GetPlayers()) do
+                local pid = tonumber(playerId)
+                if pid and pid ~= src and isConnected(pid) then
+                    local coords = GetEntityCoords(GetPlayerPed(pid))
+                    if #(srcCoords - coords) <= radius then
+                        TriggerClientEvent("idcard:show", pid, {
+                            action   = "showCard",
+                            cardType = cardType,
+                            data     = payload,
+                        })
+                    end
+                end
+            end
+        end)
+    else
+        local payload = buildNearbyPayload(cardType, char, nil)
+        for _, playerId in ipairs(GetPlayers()) do
+            local pid = tonumber(playerId)
+            if pid and pid ~= src and isConnected(pid) then
+                local coords = GetEntityCoords(GetPlayerPed(pid))
+                if #(srcCoords - coords) <= radius then
+                    TriggerClientEvent("idcard:show", pid, {
+                        action   = "showCard",
+                        cardType = cardType,
+                        data     = payload,
+                    })
+                end
             end
         end
     end
 end)
 
 -- ─────────────────────────────────────────────
--- ÉVÉNEMENTS FERMÉS (notifications client)
+-- ÉVÉNEMENTS FERMÉS
 -- ─────────────────────────────────────────────
 
 RegisterNetEvent("idcard:closed",   function() end)
@@ -458,10 +592,7 @@ end)
 
 exports("UseIdentityCard", function(src)
     local char = getCharacter(src)
-    if not char then
-        dprint("EXPORT identity failed: no char for src=" .. tostring(src))
-        return
-    end
+    if not char then return end
     sendCard(src, "identity", {
         type        = "identity",
         firstname   = char.firstname,
@@ -487,37 +618,43 @@ end)
 exports("UseWeaponCard", function(src)
     local char = getCharacter(src)
     if not char then return end
-    sendCard(src, "weapon", {
-        type          = "weapon",
-        firstname     = char.firstname,
-        lastname      = char.lastname,
-        licenseNumber = ("WPN-%04d"):format(math.random(1000, 9999)),
-    })
+    getPersistentNumber(char.unique_id, "WPN", function(number)
+        sendCard(src, "weapon", {
+            type          = "weapon",
+            firstname     = char.firstname,
+            lastname      = char.lastname,
+            licenseNumber = number,
+        })
+    end)
 end)
 
 exports("UsePoliceCard", function(src)
     local char = getCharacter(src)
     if not char then return end
     if not isInJobs(char, Config.policeJobs) then return end
-    sendCard(src, "police", {
-        type        = "police",
-        firstname   = char.firstname,
-        lastname    = char.lastname,
-        badgeNumber = ("LSPD-%04d"):format(math.random(1000, 9999)),
-        rank        = char.job_grade_label or char.job or "Officer",
-    })
+    getPersistentNumber(char.unique_id, "LSPD", function(number)
+        sendCard(src, "police", {
+            type        = "police",
+            firstname   = char.firstname,
+            lastname    = char.lastname,
+            badgeNumber = number,
+            rank        = char.job_grade_label or char.job or "Officer",
+        })
+    end)
 end)
 
 exports("UseEMSCard", function(src)
     local char = getCharacter(src)
     if not char then return end
     if not isInJobs(char, Config.emsJobs) then return end
-    sendCard(src, "ems", {
-        type      = "ems",
-        firstname = char.firstname,
-        lastname  = char.lastname,
-        emsNumber = ("EMS-%04d"):format(math.random(1000, 9999)),
-    })
+    getPersistentNumber(char.unique_id, "EMS", function(number)
+        sendCard(src, "ems", {
+            type      = "ems",
+            firstname = char.firstname,
+            lastname  = char.lastname,
+            emsNumber = number,
+        })
+    end)
 end)
 
 exports("UsePassport", function(src)
@@ -534,4 +671,4 @@ exports("UsePassport", function(src)
     })
 end)
 
-log:info("kt_idcard_ui SERVER LOADED v2")
+log:info("kt_idcard_ui SERVER LOADED v3")

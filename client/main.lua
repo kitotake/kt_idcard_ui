@@ -1,12 +1,22 @@
 -- client/main.lua
--- kt_idcard_ui v3 + kt_bankcard_ui — CLIENT FUSIONNÉ
--- Corrections :
---   [FIX-1] Double AddEventHandler("kt_context:action") fusionné en UN SEUL handler
---   [FIX-2] SetNuiFocus(true, true) pour bloquer la caméra pendant l'affichage NUI
+-- kt_idcard_ui v3 — CLIENT UNIFIÉ
+-- Corrections appliquées :
+--   [FIX-1] Handler kt_context:action unique (pas de double registration)
+--   [FIX-2] SetNuiFocus(true, true) bloque la caméra pendant l'affichage NUI
 --   [FIX-3] Debounce véhicule 60s entre deux checks
+--   [FIX-4] nuiOpen exposé via module NUI pour éviter la dépendance inter-fichiers
+--   [FIX-5] closeNUI n'envoie plus hideCard si déjà fermé (protection boucle)
 
-local log     = Logger:child("UNIFIED:CLIENT")
-local nuiOpen = false
+local log = Logger:child("UNIFIED:CLIENT")
+
+-- ─── État NUI partagé (accessible via NuiState depuis photo_capture.lua) ─────
+-- On évite la variable locale nue pour ne pas créer de dépendance fragile
+-- entre fichiers. photo_capture.lua utilise NuiState.open / NuiState.close().
+
+NuiState = {
+    open  = false,
+}
+
 local npcId        = nil
 local npcDrivingId = nil
 local blipMairie   = nil
@@ -102,13 +112,15 @@ end
 -- ─── NUI open/close ──────────────────────────────────────────────────────────
 
 local function openNUI(payload)
-    nuiOpen = true
-    SetNuiFocus(true, true)   -- [FIX-2] 2ème arg = true bloque la caméra
+    NuiState.open = true
+    SetNuiFocus(true, true)
     SendNUIMessage(payload)
 end
 
 local function closeNUI()
-    nuiOpen = false
+    -- [FIX-5] Guard : ne pas renvoyer hideCard si déjà fermé
+    if not NuiState.open then return end
+    NuiState.open = false
     SetNuiFocus(false, false)
     SendNUIMessage({ action = "hideCard" })
 end
@@ -150,7 +162,7 @@ AddEventHandler("union:character:unloaded", function()
     removeBlip(blipDriving)
     npcId = nil ; npcDrivingId = nil
     blipMairie = nil ; blipDriving = nil
-    if nuiOpen then closeNUI() end
+    if NuiState.open then closeNUI() end
 end)
 
 -- ─── Police ──────────────────────────────────────────────────────────────────
@@ -165,12 +177,8 @@ local function isPolice()
 end
 
 -- ─── Handler kt_context:action UNIQUE [FIX-1] ────────────────────────────────
--- TOUTES les actions kt_context sont traitées ici en un seul handler.
--- L'ancienne version avait deux AddEventHandler distincts pour le même event,
--- ce qui causait des comportements imprévisibles selon l'ordre d'exécution.
 
 AddEventHandler("kt_context:action", function(id, data)
-    -- Relais NPC mairie et auto-école
     if id == "idcard:npc:interact" then
         TriggerServerEvent("idcard:npc:interact")
         return
@@ -181,14 +189,11 @@ AddEventHandler("kt_context:action", function(id, data)
         return
     end
 
-    -- Relais boutique (défini ici plutôt que dans shop_ped.lua pour éviter
-    -- un re-enregistrement à chaque spawn du PNJ)
     if id == "idcard_shop_open" then
         TriggerServerEvent("idcard:shop:open")
         return
     end
 
-    -- Contrôles policiers
     if isPolice() then
         if id == "idcard_police_identity" and data and data.targetSid then
             TriggerServerEvent("idcard:police:checkIdentity", data.targetSid)
@@ -243,7 +248,6 @@ CreateThread(function()
             if not inVehicle then
                 inVehicle = true
                 local now = GetGameTimer()
-                -- [FIX-3] Nouveau véhicule ET cooldown 60s
                 if veh ~= lastVehicle and (now - lastLicenseCheck) > 60000 then
                     lastVehicle      = veh
                     lastLicenseCheck = now

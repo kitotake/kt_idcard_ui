@@ -7,7 +7,7 @@ Config.resources = {
     union     = "union",
     inventory = "kt_inventory",
     interact  = "kt_interact",
-    context   = "kt_context",   -- remplace kt_target — zones et menus joueur
+    context   = "kt_context",
 }
 
 -- ─── Items inventaire ─────────────────────────────────────────────────────────
@@ -43,7 +43,7 @@ Config.govJobs    = { "gov", "government", "mayor" }
 -- ─── Rayon affichage carte aux proches ────────────────────────────────────────
 Config.showRadius = 5.0
 
--- ─── PNJ Mairie (donne la carte d'identité gratuite) ─────────────────────────
+-- ─── PNJ Mairie ───────────────────────────────────────────────────────────────
 Config.npc = {
     model   = "s_m_m_ciasec_01",
     heading = 180.0,
@@ -55,7 +55,7 @@ Config.npc = {
     },
 }
 
--- ─── PNJ Auto-école (donne les permis gratuitement) ──────────────────────────
+-- ─── PNJ Auto-école ───────────────────────────────────────────────────────────
 Config.npcDriving = {
     model   = "s_m_m_fiboffice_02",
     heading = 90.0,
@@ -67,61 +67,36 @@ Config.npcDriving = {
     },
 }
 
--- ─── PNJ Boutique documents (vente payante) ───────────────────────────────────
---
---  Ce PNJ permet d'acheter carte d'identité et permis de conduire
---  directement contre de l'argent (déduit du compte bancaire personnel).
---
---  Scénarios GTA V utiles pour Scenario :
---    "WORLD_HUMAN_CLIPBOARD"       → tient un clipboard, regarde autour
---    "WORLD_HUMAN_AA_SMOKE"        → fume une cigarette
---    "WORLD_HUMAN_STAND_IMPATIENT" → attend en croisant les bras
---    "WORLD_HUMAN_COP_IDLES"       → pose de policier au repos
---    "WORLD_HUMAN_GUARD_STAND"     → garde debout
---
+-- ─── PNJ Boutique documents ───────────────────────────────────────────────────
 Config.PNJ = {
-    model      = "s_f_y_airhostess_01",        -- modèle du ped (GTA V ped name)
-    coords     = vector3(-268.0, -975.0, 31.2), -- À adapter selon votre map
-    heading    = 340.0,                        -- direction (0-360)
-    frozen     = true,                         -- ne se déplace pas
-    invincible = true,                         -- immortel
-    scenario   = "WORLD_HUMAN_CLIPBOARD",      -- animation idle
+    model      = "s_f_y_airhostess_01",
+    coords     = vector3(-268.0, -975.0, 31.2),
+    heading    = 340.0,
+    frozen     = true,
+    invincible = true,
+    scenario   = "WORLD_HUMAN_CLIPBOARD",
 
-    -- Label et icône affichés sur l'interaction (kt_context)
     label    = "📋 Officier d'état civil",
     icon     = "fas fa-file-contract",
     distance = 2.5,
 
-    -- Blip minimap
     blip = {
         enabled = true,
-        sprite  = 408,          -- 408 = silhouette personne
-        color   = 5,            -- 5 = jaune
+        sprite  = 408,
+        color   = 5,
         scale   = 0.8,
         label   = "État Civil",
     },
 
-    -- ─── Catalogue ────────────────────────────────────────────────────────
-    -- Chaque entrée correspond à un document achetable.
-    --
-    -- Champs :
-    --   id      → identifiant unique (string)
-    --   label   → texte affiché dans le menu
-    --   desc    → description affichée sous le label
-    --   price   → coût en $ (compte bancaire personnel)
-    --   item    → clé dans Config.items à donner après achat (nil = aucun item)
-    --   licType → type de licence à enregistrer en BDD (nil = pas de licence)
-    --   unique  → true = bloqué si déjà possédé
-    --
     shop = {
         {
             id      = "identity_card",
             label   = "🪪 Carte d'identité nationale",
             desc    = "Document officiel requis pour toute démarche administrative.",
             price   = 150,
-            item    = "identity",  -- donne l'item identity_card
+            item    = "identity",
             licType = nil,
-            unique  = true,        -- une seule par personnage
+            unique  = true,
         },
         {
             id      = "license_A",
@@ -153,4 +128,4 @@ Config.PNJ = {
     },
 }
 
-Config.debug = true
+Config.debug = false

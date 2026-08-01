@@ -1,17 +1,16 @@
 -- client/shop_ped.lua
 -- PNJ Boutique documents — spawn, interaction, menu NUI
 -- Corrections :
---   [FIX-1] AddEventHandler("kt_context:action") RETIRÉ de cette fonction.
---           L'action "idcard_shop_open" est maintenant gérée dans client/main.lua
---           (handler unique). L'ancienne version réenregistrait un nouveau handler
---           à chaque appel de spawnShopPed(), multipliant les callbacks.
---   [FIX-2] Zone kt_context enregistrée une seule fois (guard idcard_shop_zone_registered)
+--   [FIX-1] Handler kt_context:action retiré — géré dans client/main.lua
+--   [FIX-2] Zone kt_context enregistrée une seule fois (guard shopZoneRegistered)
+--   [FIX-3] shopZoneRegistered réinitialisé inconditionnellement dans removeShopPed
+--           (bug : si le ped n'existait plus, la zone n'était jamais ré-enregistrable)
+--   [FIX-4] Condition elseif corrigée : "not X == Y" → "X ~= Y"
 
 local log       = Logger:child("SHOP:CLIENT")
 local shopPedId = nil
 local shopBlip  = nil
 
--- Guard pour éviter la double-registration de zone si spawnShopPed() est rappelé
 local shopZoneRegistered = false
 
 -- ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -60,11 +59,9 @@ local function spawnShopPed()
         TaskStartScenarioInPlace(ped, cfg.scenario, 0, true)
     end
 
-    -- [FIX-1] La zone est enregistrée normalement.
-    -- L'action "idcard_shop_open" déclenchée par kt_context est interceptée
-    -- dans le handler unique de client/main.lua (AddEventHandler "kt_context:action").
-    -- On N'ajoute PAS de nouveau handler ici.
-    if GetResourceState(Config.resources.context) == "started" and not shopZoneRegistered then
+    local contextStarted = GetResourceState(Config.resources.context) == "started"
+
+    if contextStarted and not shopZoneRegistered then
         pcall(function()
             exports[Config.resources.context]:RegisterMenuZone({
                 id     = "idcard_shop_zone",
@@ -90,14 +87,14 @@ local function spawnShopPed()
         end)
         shopZoneRegistered = true
         log:info("Zone kt_context boutique enregistrée")
-    elseif not GetResourceState(Config.resources.context) == "started" then
+    elseif not contextStarted then
+        -- [FIX-4] Correction : "not X == Y" était toujours false en Lua
         log:warn("kt_context non disponible — interaction boutique désactivée")
     end
 
     shopPedId = ped
     log:info("PNJ boutique spawné")
 
-    -- Blip minimap
     if cfg.blip and cfg.blip.enabled and not shopBlip then
         shopBlip = AddBlipForCoord(c.x, c.y, c.z)
         SetBlipSprite(shopBlip, cfg.blip.sprite)
@@ -111,17 +108,24 @@ local function spawnShopPed()
 end
 
 local function removeShopPed()
-    if shopPedId and DoesEntityExist(shopPedId) then
-        if GetResourceState(Config.resources.context) == "started" and shopZoneRegistered then
+    -- [FIX-3] On retire la zone et on réinitialise le guard AVANT la vérification
+    -- d'existence du ped. Sinon, si le ped a disparu (crash, reconnexion),
+    -- shopZoneRegistered restait true et la zone ne pouvait plus être ré-enregistrée.
+    if shopZoneRegistered then
+        if GetResourceState(Config.resources.context) == "started" then
             pcall(function()
                 exports[Config.resources.context]:RemoveMenuZone("idcard_shop_zone")
             end)
-            shopZoneRegistered = false
         end
+        shopZoneRegistered = false
+    end
+
+    if shopPedId and DoesEntityExist(shopPedId) then
         SetEntityAsMissionEntity(shopPedId, false, true)
         DeleteEntity(shopPedId)
-        shopPedId = nil
     end
+    shopPedId = nil
+
     if shopBlip and DoesBlipExist(shopBlip) then
         RemoveBlip(shopBlip)
         shopBlip = nil

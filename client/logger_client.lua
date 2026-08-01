@@ -1,19 +1,12 @@
--- client/logger.lua
+-- client/logger_client.lua
 -- Module Logger global côté CLIENT
 -- Doit être listé EN PREMIER dans client_scripts du fxmanifest.lua
---
--- Usage :
---   local log = Logger:child("MON_MODULE")
---   log:info("message")   → ^2[INFO]^7  [MON_MODULE] message
---   log:warn("attention") → ^3[WARN]^7  [MON_MODULE] attention
---   log:error("erreur")   → ^1[ERROR]^7 [MON_MODULE] erreur
---   log:debug("debug")    → ^5[DEBUG]^7 [MON_MODULE] debug  (si Config.debug = true)
 
 local LEVELS = { debug = 0, info = 1, warn = 2, error = 3 }
 
 local function getMinLevel()
     if _G.Config and Config.debug then return 0 end
-    return 1  -- info par défaut
+    return 1
 end
 
 local function colorTag(level)
